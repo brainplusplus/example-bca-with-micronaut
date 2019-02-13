@@ -1,0 +1,5 @@
+profile: service
+defaultPackage: bank.transaction.service
+---
+testFramework: junit
+sourceLanguage: java
