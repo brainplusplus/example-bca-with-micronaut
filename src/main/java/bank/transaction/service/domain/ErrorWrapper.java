@@ -2,6 +2,9 @@ package bank.transaction.service.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.inject.Singleton;
+
+@Singleton
 public class ErrorWrapper {
     @JsonProperty("ErrorCode")
     private String errorCode;

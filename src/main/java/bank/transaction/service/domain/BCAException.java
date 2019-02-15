@@ -1,5 +1,8 @@
 package bank.transaction.service.domain;
 
+import javax.inject.Singleton;
+
+@Singleton
 public class BCAException extends RuntimeException {
     private String errorCode;
 

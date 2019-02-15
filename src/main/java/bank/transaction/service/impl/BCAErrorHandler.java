@@ -9,6 +9,7 @@ import org.springframework.web.client.DefaultResponseErrorHandler;
 import javax.inject.Singleton;
 import java.io.IOException;
 
+@Singleton
 public class BCAErrorHandler extends DefaultResponseErrorHandler {
     @Override
     public void handleError(ClientHttpResponse clientHttpResponse) throws IOException {

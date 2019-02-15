@@ -25,6 +25,7 @@ import java.util.Date;
  * @author abc
  */
 
+
 @Singleton
 public class BCATransactionInterceptor implements ClientHttpRequestInterceptor {
     private String accessToken;

@@ -1,3 +1,24 @@
 micronaut:
     application:
         name: bank-transaction-service
+
+datasources:
+    default:
+        url: ${JDBC_URL:`jdbc:mysql://localhost:3306/bankStatement?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
+        username: ${JDBC_USER:root}
+        password: ${JDBC_PASSWORD:semut123}
+        driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
+
+#tag::jpa[] //untuk cek di folder test.app.domain jika ada setiap perubahan maka ada pembaruan table di database.
+jpa:
+    default:
+        packages-to-scan:
+            - 'bank.transaction.service.domainjpa'
+
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.MySQL5InnoDBDialect
+                hbm2ddl:
+                    auto: update
+                show_sql: true
+#end::jpa[]

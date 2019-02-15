@@ -20,6 +20,7 @@ public class Oauth2Template extends AbstractBCAOperations implements Oauth2Opera
         restTemplate.setErrorHandler(new BCAErrorHandler());
     }
 
+    @Override
     public AccessGrant getToken(String clientId, String clientSecret) {
 
         HttpHeaders headers = new HttpHeaders();

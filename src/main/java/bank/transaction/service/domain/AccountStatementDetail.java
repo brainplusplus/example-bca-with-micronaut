@@ -2,9 +2,16 @@ package bank.transaction.service.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.inject.Singleton;
 import java.math.BigDecimal;
 
+@Singleton
 public class AccountStatementDetail {
+//
+//    public AccountStatementDetail(TransactionType transactionType){
+//        this.transactionType = transactionType;
+//    }
+
     @JsonProperty("TransactionDate")
     private String transactionDate;
 

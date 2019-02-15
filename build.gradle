@@ -47,7 +47,23 @@ dependencies {
     compile group: 'org.springframework', name: 'spring-web', version: '5.1.4.RELEASE'
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
     compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
+    // https://mvnrepository.com/artifact/org.springframework/spring-core
+    compile group: 'org.springframework', name: 'spring-core', version: '5.1.4.RELEASE'
 
+
+    //tag::validator[]
+    compile "io.micronaut.configuration:micronaut-hibernate-validator"
+    //end::validator[]
+
+    //tag::jpa[]
+    compile "io.micronaut.configuration:micronaut-hibernate-jpa" // <1>
+    compile "io.micronaut.configuration:micronaut-jdbc-hikari" // <2>
+//    compile "io.micronaut.configuration:micronaut-jdbc-tomcat"
+    //end::jpa[]
+
+    //tag::mysql-conector[]
+    compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.47'
+    //end::mysql-connector[]
 }
 
 shadowJar {
