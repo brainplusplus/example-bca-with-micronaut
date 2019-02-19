@@ -8,16 +8,29 @@ datasources:
         username: ${JDBC_USER:root}
         password: ${JDBC_PASSWORD:semut123}
         driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
+    tokdis:
+        url: ${JDBC_URL:`jdbc:mysql://tokodistributor.cnnviypzj8mf.ap-southeast-1.rds.amazonaws.com:3306/tokdis_trx?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
+        username: ${JDBC_USER:tokdis_payment}
+        password: ${JDBC_PASSWORD:!**semut123**!}
+        driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
 
-#tag::jpa[] //untuk cek di folder test.app.domain jika ada setiap perubahan maka ada pembaruan table di database.
+#tag::jpa[] //untuk cek di folder bank.transaction.service.domainjpa jika ada setiap perubahan maka ada pembaruan table di database.
 jpa:
     default:
         packages-to-scan:
-            - 'bank.transaction.service.domainjpa'
-
+            - 'bank.transaction.service.domain'
         properties:
             hibernate:
                 dialect: org.hibernate.dialect.MySQL5InnoDBDialect
+                hbm2ddl:
+                    auto: update
+                show_sql: true
+    tokdis:
+        packages-to-scan:
+            - 'bank.transaction.service.tokdis'
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.MySQL5Dialect
                 hbm2ddl:
                     auto: update
                 show_sql: true

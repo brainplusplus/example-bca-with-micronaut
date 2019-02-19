@@ -2,57 +2,110 @@ package bank.transaction.service.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import javax.inject.Singleton;
+import javax.persistence.*;
 import java.math.BigDecimal;
 
-@Singleton
+@Entity
+@Table(name = "account_statement_detail")
 public class AccountStatementDetail {
-//
-//    public AccountStatementDetail(TransactionType transactionType){
-//        this.transactionType = transactionType;
-//    }
 
+    public AccountStatementDetail(){
+
+    }
+
+    public AccountStatementDetail(AccountStatement accountStatement, String transactionDate, String branchCode, TransactionType transactionType, BigDecimal amount,String name, String remark){
+        this.accountStatement = accountStatement;
+        this.transactionDate = transactionDate;
+        this.branchCode = branchCode;
+        this.transactionType = transactionType;
+        this.amount = amount;
+        this.name = name;
+        this.remark = remark;
+
+    }
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private Long id;
+
+    @Version
+    private Long version;
+
+    @Column(name = "transaction_date")
     @JsonProperty("TransactionDate")
     private String transactionDate;
 
+    @Column(name = "branch_code")
     @JsonProperty("BranchCode")
     private String branchCode;
 
+    @Column(name = "transaction_type")
     @JsonProperty("TransactionType")
     private TransactionType transactionType;
 
+    @Column(name = "transaction_amount")
     @JsonProperty("TransactionAmount")
     private BigDecimal amount;
 
+    @Column(name = "transaction_name")
     @JsonProperty("TransactionName")
     private String name;
 
+    @Column(name = "trailer")
     @JsonProperty("Trailer")
     private String remark;
+
+    @JoinColumn(name = "account_statement_id")
+    @ManyToOne
+    private AccountStatement accountStatement;
+
+    public void setId(Long id) { this.id = id; }
+
+    public Long getId() { return id; }
+
+    public void setVersion(Long version) { this.version = version; }
+
+    public Long getVersion() { return version; }
+
+    public void setTransactionDate(String transactionDate) { this.transactionDate = transactionDate; }
 
     public String getTransactionDate() {
         return transactionDate;
     }
 
+    public void setBranchCode(String branchCode) { this.branchCode = branchCode; }
+
     public String getBranchCode() {
         return branchCode;
     }
+
+    public void setTransactionType(TransactionType transactionType) { this.transactionType = transactionType; }
 
     public TransactionType getTransactionType() {
         return transactionType;
     }
 
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+
     public BigDecimal getAmount() {
         return amount;
     }
+
+    public void setName(String name) { this.name = name; }
 
     public String getName() {
         return name;
     }
 
+    public void setRemark(String remark) { this.remark = remark; }
+
     public String getRemark() {
         return remark;
     }
+
+    public void setAccountStatement(AccountStatement accountStatement) { this.accountStatement = accountStatement; }
+
+    public AccountStatement getAccountStatement() { return accountStatement; }
 
     @Override
     public String toString() {

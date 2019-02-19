@@ -8,17 +8,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@Singleton
-public class TransactionType {
+
+public enum TransactionType {
     /**
      * Debit Type
      */
-    private final String DEBIT = "D";
+    DEBIT("D"),
 
     /**
      * Credit Type
      */
-    private final String CREDIT = "C";
+    CREDIT("C");
 
     private final String code;
 
@@ -26,13 +26,11 @@ public class TransactionType {
         this.code = code;
     }
 
-//    private static Map<String, TransactionType> transactionTypeMap = Stream.of(TransactionType.values()).collect(Collectors.toMap(
-//            s -> s.code, Function.identity())
-//    );
+    private static Map<String, TransactionType> transactionTypeMap = Stream.of(TransactionType.values()).collect(Collectors.toMap(s -> s.code, Function.identity()));
 
-//    @JsonCreator
-    public String fromString(String value) {
-        return value;
+    @JsonCreator
+    public static TransactionType fromString(String value) {
+        return transactionTypeMap.get(value);
     }
 
     @Override

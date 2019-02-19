@@ -2,18 +2,22 @@ package bank.transaction.service.scheduler;
 
 import bank.transaction.service.domain.AccessGrant;
 import bank.transaction.service.domain.AccountStatement;
+import bank.transaction.service.domain.AccountStatementDetail;
 import bank.transaction.service.impl.BCAErrorHandler;
 import bank.transaction.service.impl.BCATransactionInterceptor;
 import bank.transaction.service.impl.BusinessBankingTemplate;
 import bank.transaction.service.impl.Oauth2Template;
 import bank.transaction.service.repository.Oauth2Operations;
+import bank.transaction.service.service.AccountStatementService;
 import bank.transaction.service.service.BcaService;
+import bank.transaction.service.service.OrderService;
 import io.micronaut.scheduling.annotation.Scheduled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestTemplate;
 
 import javax.inject.Singleton;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Collections;
@@ -49,58 +53,49 @@ public class TransactionCheckerJob {
     protected AccessGrant accessGrant;
     private BusinessBankingTemplate businessBankingTemplate;
     private RestTemplate restTemplate;
+    private final AccountStatementService accountStatementService;
+    private final OrderService orderService;
 
-    public TransactionCheckerJob(BcaService bcaService, Oauth2Template oauth2Template, RestTemplate restTemplate){
+    public TransactionCheckerJob(BcaService bcaService, Oauth2Template oauth2Template, RestTemplate restTemplate, AccountStatementService accountStatementService, OrderService orderService){
         this.bcaService = bcaService;
         this.oauth2Template = oauth2Template;
         this.restTemplate = restTemplate;
-//        this.businessBankingTemplate = businessBankingTemplate;
-//        this.bcaTransactionInterceptor = bcaTransactionInterceptor;
+        this.accountStatementService = accountStatementService;
+        this.orderService = orderService;
     }
 
     @Scheduled(fixedDelay = "10s")
     void executeEveryTen() throws Exception {
         LOG.info("Simple Job every 10 seconds :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("JOB  :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-//        bcaService.send();
-//        bcaService.getTransaction("","");
 
+        Date fromDate = toDate(2019, 2,15);
+        Date endDate = toDate(2019, 2, 15);
 
-//        accessGrant = oauth2Template.getToken(CLIENT_ID,CLIENT_SECRET);
-        Date fromDate = toDate(2019, 1,15);
-        Date endDate = toDate(2019, 1, 15);
-//        RestTemplate restTemplate = new RestTemplate();
-//
-//        Oauth2Operations oauth2Operations = new Oauth2Template();
-//        AccessGrant accessGrant = oauth2Operations.getToken(CLIENT_ID, CLIENT_SECRET);
-//        LOG.info("\n\nHASIL => {}", accessGrant);
-//        LOG.info("\n\nHASIL GRANT  => {}",  new BCATransactionInterceptor(accessGrant.getAccessToken(), CLIENT_ID, CLIENT_SECRET));
-
-        BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
-        LOG.info("\n\nHASIL businessBankingTemplate => {}", businessBankingTemplate.getStatement(CORPORATE_ID, ACCOUNT_NUMBER, fromDate, endDate));
-//        restTemplate.setInterceptors(Collections.singletonList(new BCATransactionInterceptor(accessGrant.getAccessToken(), API_KEY, API_SECRET)));
-//        restTemplate.setErrorHandler(new BCAErrorHandler());
-//        LOG.info("\n\naaaa => {}",new BCATransactionInterceptor(accessGrant.getAccessToken(), API_KEY, API_SECRET));
-
-//        AccountStatement accountStatement = businessBankingTemplate.getStatement("BCAAPI2016", "0201245680", fromDate, endDate);
-
-
-//        restTemplate.setInterceptors(Collections.singletonList(new BCATransactionInterceptor(accessGrant.getAccessToken(), API_KEY, API_SECRET)));
-//        restTemplate.setErrorHandler(new BCAErrorHandler());
-//        LOG.info("\n\nHASIL => {}", new BCATransactionInterceptor(accessGrant.getAccessToken(), API_KEY, API_SECRET));
-
-//        businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
-//        Date fromDate = toDate(2016, 8,30);
+//        Date fromDate = toDate(2016, 9,1);
 //        Date endDate = toDate(2016, 9, 1);
-//
-//
-//        LOG.info("\n\naccountStatement => {}", businessBankingTemplate.getStatement("BCAAPI2016", "0201245680", fromDate, endDate));
+
+        BigDecimal abc = new BigDecimal(2900000);
+        BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
+//        LOG.info("\n\nHASIL businessBankingTemplate => {}", businessBankingTemplate.getStatement(CORPORATE_ID, ACCOUNT_NUMBER, fromDate, endDate));
+        AccountStatement ac = accountStatementService.saveConditional(businessBankingTemplate.getStatement(CORPORATE_ID, ACCOUNT_NUMBER, fromDate, endDate));
+        LOG.info("\n\n\n\n\n\nBARA BARA ==> {}",ac);
+        for (AccountStatementDetail acd: ac.getAccountStatementDetailList()) {
+            orderService.CheckToTokdis(abc);
+        }
+
 
     }
 
-    @Scheduled(fixedDelay = "45s", initialDelay = "5s")
+    @Scheduled(fixedDelay = "10s", initialDelay = "5s")
     void executeEveryFourtyFive() {
+//        orderService.CheckToTokdis();
         LOG.info("Simple Job every 45 seconds :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
+    }
+
+    @Scheduled(fixedDelay = "5s")
+    void expiredPaymentChecking(){
+        orderService.autoUpdatePaymentStatusIfExpired();
     }
 
     protected RestTemplate getRestTemplate() {
