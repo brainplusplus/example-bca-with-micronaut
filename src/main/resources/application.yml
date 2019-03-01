@@ -6,12 +6,17 @@ datasources:
     default:
         url: ${JDBC_URL:`jdbc:mysql://localhost:3306/bankStatement?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
         username: ${JDBC_USER:root}
-        password: ${JDBC_PASSWORD:semut123}
+        password: ${JDBC_PASSWORD:root}
         driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
     tokdis:
         url: ${JDBC_URL:`jdbc:mysql://tokodistributor.cnnviypzj8mf.ap-southeast-1.rds.amazonaws.com:3306/tokdis_trx?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
         username: ${JDBC_USER:tokdis_payment}
         password: ${JDBC_PASSWORD:!**semut123**!}
+        driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
+    maintokdis:
+        url: ${JDBC_URL:`jdbc:mysql://tokodistributor.cnnviypzj8mf.ap-southeast-1.rds.amazonaws.com:3306/tokdisdev?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
+        username: ${JDBC_USER:tokdisdev_read}
+        password: ${JDBC_PASSWORD:<!tokdis344555ku>}
         driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
 
 #tag::jpa[] //untuk cek di folder bank.transaction.service.domainjpa jika ada setiap perubahan maka ada pembaruan table di database.
@@ -34,4 +39,14 @@ jpa:
                 hbm2ddl:
                     auto: update
                 show_sql: true
+    maintokdis:
+        packages-to-scan:
+            - 'bank.transaction.service.tokdis'
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.MySQL5Dialect
+                hbm2ddl:
+                    auto: update
+                show_sql: true
+
 #end::jpa[]

@@ -58,8 +58,6 @@ public class BcaService {
         wr.flush();
         wr.close();
 
-        int responseCode = connection.getResponseCode();
-
         BufferedReader in = new BufferedReader(
                 new InputStreamReader(connection.getInputStream()));
         String inputLine;

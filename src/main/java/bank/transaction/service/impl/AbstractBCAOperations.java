@@ -2,11 +2,8 @@ package bank.transaction.service.impl;
 
 import java.util.List;
 import java.util.Map;
-
-import io.micronaut.context.BeanContext;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import javax.inject.Singleton;
 
 @Singleton
@@ -15,8 +12,8 @@ public class AbstractBCAOperations {
      * BCA Sandbox URL
      */
 
-//    private static final String BCA_API_SANDBOX_URL = "https://sandbox.bca.co.id";
-    private static final String BCA_API_SANDBOX_URL = "https://api.klikbca.com";
+    private static final String BCA_API_SANDBOX_URL = "https://sandbox.bca.co.id";
+//    private static final String BCA_API_SANDBOX_URL = "https://api.klikbca.com";
 
 //    RestTemplateA restTemplate = BeanContext.run().getBean(RestTemplateA.class);
     protected RestTemplate restTemplate ;

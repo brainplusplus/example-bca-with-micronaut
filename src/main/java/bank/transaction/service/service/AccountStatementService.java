@@ -21,10 +21,6 @@ public class AccountStatementService {
         this.entityManager = entityManager;
     }
 
-    public AccountStatementService(){
-
-    }
-
     /**
      * @param accountStatement a list of account statement that receive from api.klikbca.com
      * @return accountStatement a list of account statement where already save
@@ -57,7 +53,7 @@ public class AccountStatementService {
                     entityManager.persist(detail);
                 }
                 else{
-                    LOG.info("\n\n\nThis Account Statement Detail already exist in DB ::: {}",query.getResultList().get(0));
+                    LOG.info("\n\n\nThis Account Statement Detail already exist in DB ::: {}");
                 }
 
             }
