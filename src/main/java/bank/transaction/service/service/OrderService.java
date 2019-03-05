@@ -57,7 +57,7 @@ public class OrderService {
         try {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("select * from order_summaries where total_amount = ? AND is_paid = 0 AND is_cancelled = 0 AND payment_expired_at >= NOW() AND payment_status in (0,3)");
-            preparedStatement.setInt(1,210445);
+            preparedStatement.setInt(1,amountValue);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 Order order = new Order();
@@ -161,7 +161,6 @@ public class OrderService {
      * auto check expired time every 10s
      * */
     public void autoUpdatePaymentStatusIfExpired(){
-
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -545,11 +544,14 @@ public class OrderService {
             preparedStatement = con.prepareStatement("select a.product_data, a.product_variation->'$[*].id' as id_item, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
+            int index = 0;
             while(resultSet.next()){
                 String jsonString = resultSet.getString("product_data");
                 String getItemList = resultSet.getString("id_item");
                 String getQtyList = resultSet.getString("qty");
-
+                LOG.info("\n\n\nGET ITEM LIST INDEX[{}] => {}",index,getItemList);
+                LOG.info("\nGET QTY LIST INDEX[{}] => {}",index,getQtyList);
+                LOG.info("\n-------------------------------------------------------");
                 getItemList = getItemList.replace("[","").replace("]","").replace(" ","");
                 getQtyList = getQtyList.replace("[","").replace("]","").replace(" ","");
                 List<String> idItemList = new ArrayList<>(Arrays.asList(getItemList.split(",")));
@@ -797,6 +799,7 @@ public class OrderService {
         PreparedStatement preparedStatement = null;
 
         try {
+            LOG.info("QUERY \n\n\n update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
             con = dataSourceTokdisdev.getConnection();
             preparedStatement = con.prepareStatement("update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
             preparedStatement.executeUpdate();

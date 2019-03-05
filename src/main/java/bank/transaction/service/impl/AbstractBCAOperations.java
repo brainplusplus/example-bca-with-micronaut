@@ -12,8 +12,8 @@ public class AbstractBCAOperations {
      * BCA Sandbox URL
      */
 
-    private static final String BCA_API_SANDBOX_URL = "https://sandbox.bca.co.id";
-//    private static final String BCA_API_SANDBOX_URL = "https://api.klikbca.com";
+//    private static final String BCA_API_SANDBOX_URL = "https://sandbox.bca.co.id";
+    private static final String BCA_API_SANDBOX_URL = "https://api.klikbca.com";
 
 //    RestTemplateA restTemplate = BeanContext.run().getBean(RestTemplateA.class);
     protected RestTemplate restTemplate ;
