@@ -1,5 +1,8 @@
 package bank.transaction.service.service;
 
+import bank.transaction.service.domain.Email;
+import bank.transaction.service.domain.EmailOrderDetail;
+import bank.transaction.service.domain.EmailPayment;
 import bank.transaction.service.expedition.Order;
 import bank.transaction.service.expedition.OrderDetail;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -18,8 +21,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
+import java.net.ProtocolException;
 import java.net.URL;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Date;
 import java.util.stream.IntStream;
@@ -168,12 +173,12 @@ public class OrderService {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_summaries where payment_status = ? AND payment_expired_at <= ? AND is_paid = 0"); //expired_payment-date -> payment_expired_at
-            preparedStatement.setInt(1, 0);
-            preparedStatement.setTimestamp(2, new java.sql.Timestamp(new Date().getTime()));
+            preparedStatement = con.prepareStatement("select * from order_summaries where payment_status in(0,2) AND payment_expired_at <= ? AND is_paid = 0 AND is_cancelled = 0"); //expired_payment-date -> payment_expired_at
+            preparedStatement.setTimestamp(1, new java.sql.Timestamp(new Date().getTime()));
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 updateOrderSummaries(resultSet.getInt("id"));//id order supplier
+                updateOrderStatusAtOrderSupplier(resultSet.getInt("id"));
                 HashMap<String,List> result = getOrderProductDetail(resultSet.getInt("id"));
 
                 List<HashMap<String,Integer>> itemQtyList = result.get("itemQtyList");
@@ -208,13 +213,13 @@ public class OrderService {
                 order.setTotalPayment(resultSet.getInt("total_amount"));
                 order.setTotalPrice(resultSet.getInt("subtotal"));
                 order.setShippingAddress(getAddress(resultSet.getInt("id")));
-                order.setEmailTo("bobby@tokodistributor.com");
+//                order.setEmailTo("bobby@tokodistributor.com");
                 order.setPpn(0);
                 order.setOrderDetailList(orderDetails);
                 LOG.info("\n\n\norderDetails ---------------------------------- \n {}",orderDetails);
-                SendMailNotification(
-                        order,"failed"
-                );
+//                SendMailNotification(
+//                        order,"failed"
+//                );
 //                updateOrderSummariesIfCancelled(resultSet.getInt("id"));
             }
         } catch (SQLException e) {
@@ -266,24 +271,18 @@ public class OrderService {
     }
 
     /**
-     * update if order cancelled
+     * update if ordrder expired
      * */
-    public void updateOrderSummariesIfCancelled(int id){
+    public void updateOrderStatusAtOrderSupplier(int id){
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_summaries set payment_status = ? , " +
-                    "payment_verified_by = ? , payment_verified_at = ? , is_paid = ? , is_cancelled = ? where id = ?");
-            preparedStatement.setInt(1,0);
-            preparedStatement.setInt(2,0); //0 => system;
-            preparedStatement.setTimestamp(3, new java.sql.Timestamp(new Date().getTime()));
-            preparedStatement.setInt(4, 0);
-            preparedStatement.setInt(5, 1);
-//            preparedStatement.setString(6, "CANCELLED");
-            preparedStatement.setInt(6, id);
+            preparedStatement = con.prepareStatement("update order_suppliers set order_status = 2  " +
+                    " where summaries_id = ?");
+            preparedStatement.setInt(1,id);
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
@@ -360,83 +359,15 @@ public class OrderService {
     }
 
     public void SendMailNotification(Order order, String status) throws Exception {
-
-
-
-        ObjectMapper mapper = new ObjectMapper();
-        String jsonInString = mapper.writeValueAsString(order);
-        LOG.info("\n\n\nJSON = {}",jsonInString);
-
-//        StringBuilder sb = new StringBuilder();
-//        sb.append("{");
-//        sb.append("'order_number':");
-//        sb.append("'"+orderNumber+"',");
-//        sb.append("'email_to':");
-//        sb.append("'"+emailTo+"',");
-//        sb.append("'customer_name':");
-//        sb.append("'"+customerName+"',");
-//        sb.append("'shipping_address':");
-//        sb.append("'"+shippingAddress+"',");
-//        sb.append("'phone_number':");
-//        sb.append("'"+phoneNo+"',");
-//        sb.append("'total_price':");
-//        sb.append("'"+totalPrice+"',");
-//        sb.append("'total_payment':");
-//        sb.append("'"+totalPayment+"',");
-//        sb.append("'order_detail':");
-
-//        sb.append("[");
-//
-//        int liseSize = orderDetal.size();
-//        for (HashMap<String,String> map: orderDetal) {
-//            sb.append("{");
-//            sb.append("'name':");
-//            sb.append("'"+map.get("name")+"'");
-//            sb.append("'code':");
-//            sb.append("'"+map.get("code")+"'");
-//            sb.append("'price':");
-//            sb.append(map.get("price"));
-//            sb.append("'quantity':");
-//            sb.append(map.get("quantity"));
-//            sb.append("'total':");
-//            sb.append(map.get("name"));
-//            sb.append("}");
-//        }
-//        sb.append("]");
-
-//        JSONObject jObject = new JSONObject();
-//        try
-//        {
-//            JSONArray jArray = new JSONArray();
-//            for (HashMap<String,String> map: orderDetal)
-//            {
-//                JSONObject orderDetailJSON = new JSONObject();
-//                orderDetailJSON.put("name", map.get("name"));
-//                orderDetailJSON.put("code", map.get("code"));
-//                orderDetailJSON.put("price", map.get("price"));
-//                orderDetailJSON.put("quantity", map.get("quantity"));
-//                orderDetailJSON.put("total", map.get("total"));
-//                jArr
-//            }
-//            jObject.put("StudentList", jArray);
-//        } catch (JSONException jse) {
-//            jse.getMessage();
-//        }
-
         String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/email/transaction/"+status;
         URL obj = new URL(URL_TOKDIS);
         HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
-
-        LOG.info("\n\n\nURL -> {}",URL_TOKDIS);
-
 
         //add reuqest header
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
 
-        String urlParameters = "order_number="+order.getOrderNumber()+"&email_to="+order.getEmailTo()+"&customer_name="+order.getCustomerName()+"&shipping_address="+order.getShippingAddress()+"&phone_number="+order.getPhoneNo()+"&total_price="+order.getTotalPrice()+"&total_payment="+order.getTotalPayment();
-        LOG.info("\n\n\nParameters -> {} ",urlParameters);
-        LOG.info("\n\n\nORDER  -> {} ",order.toString());
+//        String urlParameters = "order_number="+order.getOrderNumber()+"&email_to="+order.getEmailTo()+"&customer_name="+order.getCustomerName()+"&shipping_address="+order.getShippingAddress()+"&phone_number="+order.getPhoneNo()+"&total_price="+order.getTotalPrice()+"&total_payment="+order.getTotalPayment();
 //        LOG.info("\n\n\nORDER  -> {} ",urlParameters);
         // Send post request
         connection.setDoOutput(true);
@@ -445,8 +376,7 @@ public class OrderService {
         wr.flush();
         wr.close();
 
-        BufferedReader in = new BufferedReader(
-                new InputStreamReader(connection.getInputStream()));
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
         String inputLine;
         StringBuffer response = new StringBuffer();
 
@@ -722,7 +652,7 @@ public class OrderService {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 where supplier_feedback_expired_at <= CURDATE() AND supplier_feedback_at  is not null ");
+            preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 where awb_expired_at <= CURDATE() AND supplier_feedback_at  is not null ");
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
@@ -818,5 +748,164 @@ public class OrderService {
     }
 
 
+    public void checkForReminder(){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        Email email = new Email();
+        EmailOrderDetail emailOrderDetail = new EmailOrderDetail();
+        EmailPayment emailPayment = new EmailPayment();
+        List<EmailPayment> emailPaymentList = new ArrayList<>();
+
+        try {
+
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select id, payment_expired_at, order_number, total_amount, subtotal, transfer_unique_number, payment_data->'$.method' as method, payment_data->'$.via.BANK[0].code' as vendor, payment_data->'$.via.BANK[0].icon' as vendor_icon, payment_data->'$.via.BANK[0].name' as account_name, payment_data->'$.via.BANK[0].number' as account_number from order_summaries where payment_status = 0 AND DATE_SUB(payment_expired_at, interval 1 hour) between  NOW() AND DATE_ADD(NOW(), interval 5 minute) AND is_paid = 0 AND is_cancelled = 0");
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                Timestamp timestamp = resultSet.getTimestamp("payment_expired_at");
+                Date paymentExpiredAt = new Date(timestamp.getTime());
+                String tanggal = new SimpleDateFormat("EEEE, dd MMMM yyyy").format(paymentExpiredAt);
+                String jam = new SimpleDateFormat("hh.mm").format(paymentExpiredAt);
+                //TODO set values to EmailPayment
+                emailPayment.setMethod(resultSet.getString("method"));
+                emailPayment.setVendor(resultSet.getString("vendor"));
+                emailPayment.setVendorIcon(resultSet.getString("vendor_icon "));
+                emailPayment.setAccountName(resultSet.getString("account_name"));
+                emailPayment.setAccountNo(resultSet.getString("aacount_number"));
+                emailPayment.setVendorBranch("Jelambar");
+                emailPaymentList.add(emailPayment);
+
+                //TODO set values to Object
+                email.setEmailPaymentList(emailPaymentList);
+                email.setLastPaymentDate(tanggal);
+                email.setLastPaymentHour(jam);
+                email.setOrderNumber(resultSet.getString("order_number"));
+                email.setTotalPayment(resultSet.getInt("total_amount"));
+                email.setSubtotal(resultSet.getInt("subtotal"));
+                email.setUniqueCode(resultSet.getInt("transfer_unique_number"));
+
+                Email updateValues = GetEmailOrderDetailForReminder(resultSet.getInt("id"), email);
+
+                updateValues = sendEmailReminder(resultSet.getInt("id"), updateValues);
+
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public Email GetEmailOrderDetailForReminder(int id,Email email){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        List<EmailOrderDetail> emailOrderDetailList = new ArrayList<>();
+
+
+        try {
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select a.product_variation->'$[*].name' as name, a.product_data->'$.price' as price, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = ?");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+               String getListName = resultSet.getString("name");
+               String getListQty = resultSet.getString("qty");
+               int price = resultSet.getInt("price");
+
+               getListName = getListName.replace("[","").replace("]","").replace(" ","");
+               getListQty = getListQty.replace("[","").replace("]","").replace(" ","");
+               List<String> itemNameList = new ArrayList<>(Arrays.asList(getListName.split(",")));
+               List<String> qtyItemList = new ArrayList<>(Arrays.asList(getListQty.split(",")));
+
+
+                IntStream.range(0, itemNameList.size())
+                        .forEach(idx ->
+                                {
+                                    EmailOrderDetail emailOrderDetail = new EmailOrderDetail();
+                                    emailOrderDetail.setName(itemNameList.get(idx));
+                                    emailOrderDetail.setPrice(price);
+                                    emailOrderDetail.setQty(Integer.parseInt(qtyItemList.get(idx)));
+                                    emailOrderDetail.setTotal(price * Integer.parseInt(qtyItemList.get(idx)));
+                                    emailOrderDetail.setEmail(email);
+                                    emailOrderDetailList.add(emailOrderDetail);
+                                }
+                        );
+                email.setEmailOrderDetailList(emailOrderDetailList);
+
+
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return email;
+    }
+
+
+    public Email sendEmailReminder(int id, Email email) throws IOException {
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        HashMap map = new HashMap();
+
+
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select * from reseller where id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                email.setEmailTo(resultSet.getString("email_address"));
+                email.setCustomerName(resultSet.getString("fullname"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return email;
+    }
+
+//    public void medium(){
+//        List<String> namaMahasisawa = new ArrayList<>();
+//        namaMahasisawa.add("Akyong");
+//        namaMahasisawa.add("Bobby");
+//        namaMahasisawa.add("Jeni");
+//        namaMahasisawa.add("Johan");
+//
+//        for (int a = 0; a< namaMahasisawa.size(); a++) {
+//            System.out.println("Nama Mahasiswa -> "+ namaMahasisawa.get(a));
+//        }
+//    }
 
 }

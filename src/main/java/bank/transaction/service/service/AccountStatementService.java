@@ -28,7 +28,10 @@ public class AccountStatementService {
     @Transactional
     public AccountStatement saveConditional(@NotNull AccountStatement accountStatement){
         HashMap map = CheckIfCurrentDateAlreadyExist(accountStatement.getStartDate(),accountStatement.getEndDate());
+        LOG.info("\n\n\n Account Statement -> {}",accountStatement);
+        LOG.info("\n\n\n MAP -> {}",map.get(map.get("notExist")));
         if((Boolean) map.get("notExist") == true){
+            LOG.info("\n\n\n\n Not exist = true");
             entityManager.persist(accountStatement);
             for (AccountStatementDetail detail: accountStatement.getAccountStatementDetailList() ) {
                 detail.setAccountStatement(accountStatement);
@@ -37,6 +40,8 @@ public class AccountStatementService {
             return accountStatement;
         }
         else{
+
+            LOG.info("\n\n\n\n Not exist = false");
             AccountStatement accountStatementInstance = (AccountStatement) map.get("result");
 
             for (AccountStatementDetail detail: accountStatement.getAccountStatementDetailList() ) {

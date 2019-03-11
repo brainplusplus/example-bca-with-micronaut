@@ -6,7 +6,7 @@ datasources:
     default:
         url: ${JDBC_URL:`jdbc:mysql://localhost:3306/bankStatement?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}
         username: ${JDBC_USER:root}
-        password: ${JDBC_PASSWORD:semut123}
+        password: ${JDBC_PASSWORD:root}
         driverClassName: ${JDBC_DRIVER:com.mysql.jdbc.Driver}
     tokdis:
         url: ${JDBC_URL:`jdbc:mysql://tokodistributor.cnnviypzj8mf.ap-southeast-1.rds.amazonaws.com:3306/tokdis_trx?autoReconnect=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false`}

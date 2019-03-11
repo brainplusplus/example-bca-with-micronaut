@@ -10,9 +10,6 @@ public class EmailOrderDetail {
     @JsonProperty("name")
     private String name;
 
-    @JsonProperty("code")
-    private String code;
-
     @JsonProperty("price")
     private int price;
 
@@ -26,9 +23,6 @@ public class EmailOrderDetail {
 
     public void setName(String name) { this.name = name; }
     public String getName() { return name; }
-
-    public void setCode(String code) { this.code = code; }
-    public String getCode() { return code; }
 
     public void setPrice(int price) { this.price = price; }
     public int getPrice() { return price; }

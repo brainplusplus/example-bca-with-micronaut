@@ -8,6 +8,7 @@ import bank.transaction.service.impl.BCATransactionInterceptor;
 import bank.transaction.service.impl.BusinessBankingTemplate;
 import bank.transaction.service.impl.Oauth2Template;
 import bank.transaction.service.repository.Oauth2Operations;
+import bank.transaction.service.repository.Oauth2OperationsBNI;
 import bank.transaction.service.service.AccountStatementService;
 import bank.transaction.service.service.BcaService;
 import bank.transaction.service.service.ExpeditionService;
@@ -55,14 +56,16 @@ public class TransactionCheckerJob {
     private final AccountStatementService accountStatementService;
     private final OrderService orderService;
     private final ExpeditionService expeditionService;
+    private final Oauth2OperationsBNI oauth2OperationsBNI;
 
-    public TransactionCheckerJob(BcaService bcaService, Oauth2Template oauth2Template, RestTemplate restTemplate, AccountStatementService accountStatementService, OrderService orderService, ExpeditionService expeditionService){
+    public TransactionCheckerJob(BcaService bcaService, Oauth2Template oauth2Template, Oauth2OperationsBNI oauth2OperationsBNI, RestTemplate restTemplate, AccountStatementService accountStatementService, OrderService orderService, ExpeditionService expeditionService){
         this.bcaService = bcaService;
         this.oauth2Template = oauth2Template;
         this.restTemplate = restTemplate;
         this.accountStatementService = accountStatementService;
         this.orderService = orderService;
         this.expeditionService = expeditionService;
+        this.oauth2OperationsBNI = oauth2OperationsBNI;
     }
 
     /**
@@ -103,14 +106,15 @@ public class TransactionCheckerJob {
 
         Date fromDate = toDate(year, month,day);
         Date endDate = toDate(year, month, day);
-
+//
+//        AccessGrant testGetTokenBNI = oauth2OperationsBNI.getToken("d78e500c-76c1-49e8-a4d8-41c5154b150e","ad0882f2-b9b4-46c2-beca-ff2946e4e1aa");
+        /** THIS IS IMPORTANT */
         BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
-
         AccountStatement ac = accountStatementService.saveConditional(businessBankingTemplate.getStatement(CORPORATE_ID, ACCOUNT_NUMBER, fromDate, endDate));
-
         for (AccountStatementDetail acd: ac.getAccountStatementDetailList()) {
             orderService.CheckToTokdis(acd.getAmount());
         }
+//        LOG.info("\n\n\nGET TOKEN BNI --> {}",testGetTokenBNI.getAccessToken());
         LOG.info(" ------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
 
@@ -118,9 +122,10 @@ public class TransactionCheckerJob {
 
     /**
      * Case No. 3 Reseller -> Dikirim -> Pesanan kaan otomatis pindah ke transaksi sampai
+     * CronJob berjalan setiap 4 jam sekali
      * TODO update order supplier -> delivery_status = 1 , order_status = 5 and confirmed_expired_at = now()+2 DAYS and is_delivered = 1 and delivered_at now()
      * */
-    @Scheduled(fixedDelay = "270s", initialDelay = "60s")
+    @Scheduled(fixedDelay = "14400s", initialDelay = "60s")
     void executeEveryFourtyFive() throws Exception {
         LOG.info("------- Case at: executeEveryFourtyFive");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
@@ -133,6 +138,7 @@ public class TransactionCheckerJob {
      * Case No. 4 Reseller-> "Reseller - Sampai" ->Pesanan akan otomatis pindah ke transaksi selesai
      * TODO Autocheck if confirmed_expired_at < now() and confirmed_at = null
      * then update order_status = 6 and confirmed_at now()
+     * + update saldo ke beranda supplier
      * */
     @Scheduled(fixedDelay = "270s", initialDelay = "90s")
     void executeUpdateTransactionDone(){
@@ -147,6 +153,8 @@ public class TransactionCheckerJob {
      * CASE No. 1 Supplier -> Supplier -> Transaksi - Pesanan BAru jika Supplier tidak merespon pesanan tersebut melebihi 1x24jam
      * TODO autocheck if supplier_feeback_expired_at < now() and supplier_feedback_at = null and order_status = 1
      * then update is_rejected = 1 and order_status = 2 and supplier_feedback_at = now()
+     * - balikin stock
+     * - balikin saldo ke brankas
      * */
     @Scheduled(fixedDelay = "270s", initialDelay = "120s")
     void executeUpdateStatusTransactionIfSupplierNotRespond(){
@@ -158,8 +166,10 @@ public class TransactionCheckerJob {
     }
 
     /**
-     * Case No.2 -> Supplier-> Pesanan akan otomatis dibatalkan, Supplier tidak meingin pesanan lebih dari 2x24Jam
+     * Case No.2 -> Supplier-> Pesanan akan otomatis dibatalkan, Supplier tidak meingin pesanan lebih dari 1x24Jam
      * TODO update order summaries -> is_rejected = 1 and order_status = 2 pesanan ditolak
+     * - Balikin stock
+     * - balikin saldo reseller brankas
      * */
     @Scheduled(fixedDelay = "270s", initialDelay = "150s")
     void executeUpdateStatusTransactionIfSupplierNotSentTheOrder(){
@@ -181,6 +191,17 @@ public class TransactionCheckerJob {
         orderService.UpdateIsRejectedIfSupplierNotSentTheOrder();
         LOG.info("------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
+    }
+
+    /**
+     * Case Reminder
+     * */
+    @Scheduled(fixedDelay = "5s")
+    void executeForReminder(){
+        LOG.info("\n\n\nCheck REMINDER --> ");
+        orderService.checkForReminder();
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
     }
 
     protected RestTemplate getRestTemplate() {
