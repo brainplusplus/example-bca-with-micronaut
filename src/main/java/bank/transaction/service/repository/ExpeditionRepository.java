@@ -16,8 +16,8 @@
  *
  * Author : Bobby
  */
-
 package bank.transaction.service.repository;
 
-public interface AccountStatementRepository {
+public interface ExpeditionRepository {
+    void CheckTracking() throws Exception;
 }

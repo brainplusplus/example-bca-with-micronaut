@@ -16,8 +16,15 @@
  *
  * Author : Bobby
  */
-
 package bank.transaction.service.repository;
 
-public interface AccountStatementRepository {
+import java.math.BigDecimal;
+
+public interface OrderServiceRepository {
+    void autoUpdatePaymentStatusIfExpired();
+    void CheckToTokdis(BigDecimal amount);
+    void updateOrderStatusToDone();
+    void updateOrderStatusRejected();
+    void UpdateIsRejectedIfSupplierNotSentTheOrder();
+    void checkForReminder();
 }

@@ -7,8 +7,10 @@ import bank.transaction.service.impl.BCAErrorHandler;
 import bank.transaction.service.impl.BCATransactionInterceptor;
 import bank.transaction.service.impl.BusinessBankingTemplate;
 import bank.transaction.service.impl.Oauth2Template;
+import bank.transaction.service.repository.ExpeditionRepository;
 import bank.transaction.service.repository.Oauth2Operations;
 import bank.transaction.service.repository.Oauth2OperationsBNI;
+import bank.transaction.service.repository.OrderServiceRepository;
 import bank.transaction.service.service.AccountStatementService;
 import bank.transaction.service.service.BcaService;
 import bank.transaction.service.service.ExpeditionService;
@@ -30,7 +32,7 @@ public class TransactionCheckerJob {
     private final BcaService bcaService;
     private final Oauth2Template oauth2Template;
 //    private final BCATransactionInterceptor bcaTransactionInterceptor;
-    /*
+    /**
     * Use this for Testing SANDBOX
     * */
 //    private final String URL_BCA = "https://sandbox.bca.co.id";
@@ -40,9 +42,9 @@ public class TransactionCheckerJob {
 //    private final String CLIENT_SECRET = "cb711807-bd70-4069-a6ce-bb9739716cae";
 //    private final String CORPORATE_ID = "BCAAPI2016";
 //    private final String ACCOUNT_NUMBER = "0201245680";
-    /*
-    * Use this for Testing PRODUCTION
-    * */
+    /**
+     * Use this for Testing PRODUCTION
+     * */
     private final String API_KEY = "114ee05a-2c94-4b4b-84cd-6957d156ed68";
     private final String API_SECRET = "6456f0b4-4a63-46a2-8e1f-5eac01fb64e5";
     private final String CLIENT_ID = "c3cd2bb1-3254-45a5-8bee-040d25a665da";
@@ -54,18 +56,18 @@ public class TransactionCheckerJob {
     private BusinessBankingTemplate businessBankingTemplate;
     private RestTemplate restTemplate;
     private final AccountStatementService accountStatementService;
-    private final OrderService orderService;
-    private final ExpeditionService expeditionService;
+    private final OrderServiceRepository orderServiceRepository;
     private final Oauth2OperationsBNI oauth2OperationsBNI;
+    private final ExpeditionRepository expeditionRepository;
 
-    public TransactionCheckerJob(BcaService bcaService, Oauth2Template oauth2Template, Oauth2OperationsBNI oauth2OperationsBNI, RestTemplate restTemplate, AccountStatementService accountStatementService, OrderService orderService, ExpeditionService expeditionService){
+    public TransactionCheckerJob(ExpeditionRepository expeditionRepository, OrderServiceRepository orderServiceRepository, BcaService bcaService, Oauth2Template oauth2Template, Oauth2OperationsBNI oauth2OperationsBNI, RestTemplate restTemplate, AccountStatementService accountStatementService){
         this.bcaService = bcaService;
         this.oauth2Template = oauth2Template;
         this.restTemplate = restTemplate;
         this.accountStatementService = accountStatementService;
-        this.orderService = orderService;
-        this.expeditionService = expeditionService;
         this.oauth2OperationsBNI = oauth2OperationsBNI;
+        this.orderServiceRepository = orderServiceRepository;
+        this.expeditionRepository = expeditionRepository;
     }
 
     /**
@@ -79,7 +81,7 @@ public class TransactionCheckerJob {
     void expiredPaymentChecking(){
         LOG.info("------- Case at: expiredPaymentChecking");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        orderService.autoUpdatePaymentStatusIfExpired();
+        orderServiceRepository.autoUpdatePaymentStatusIfExpired();
         LOG.info(" ------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
     }
@@ -111,7 +113,7 @@ public class TransactionCheckerJob {
         BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
         AccountStatement ac = accountStatementService.saveConditional(businessBankingTemplate.getStatement(CORPORATE_ID, ACCOUNT_NUMBER, fromDate, endDate));
         for (AccountStatementDetail acd: ac.getAccountStatementDetailList()) {
-            orderService.CheckToTokdis(acd.getAmount());
+            orderServiceRepository.CheckToTokdis(acd.getAmount());
         }
 //        LOG.info("\n\n\nGET TOKEN BNI --> {}",testGetTokenBNI.getAccessToken());
         LOG.info(" ------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
@@ -128,7 +130,7 @@ public class TransactionCheckerJob {
     void executeEveryFourtyFive() throws Exception {
         LOG.info("------- Case at: executeEveryFourtyFive");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        expeditionService.CheckTracking();
+        expeditionRepository.CheckTracking();
         LOG.info(" ------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
     }
@@ -143,7 +145,7 @@ public class TransactionCheckerJob {
     void executeUpdateTransactionDone(){
         LOG.info("------- Case at: executeUpdateTransactionDone");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        orderService.updateOrderStatusToDone();
+        orderServiceRepository.updateOrderStatusToDone();
         LOG.info(" ------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
     }
@@ -159,7 +161,7 @@ public class TransactionCheckerJob {
     void executeUpdateStatusTransactionIfSupplierNotRespond(){
         LOG.info("------- Case at: executeUpdateStatusTransactionIfSupplierNotRespond");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        orderService.updateOrderStatusRejected();
+        orderServiceRepository.updateOrderStatusRejected();
         LOG.info("------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
     }
@@ -174,34 +176,37 @@ public class TransactionCheckerJob {
     void executeUpdateStatusTransactionIfSupplierNotSentTheOrder(){
         LOG.info("------- Case at: executeUpdateStatusTransactionIfSupplierNotSentTheOrder");
         LOG.info("------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        orderService.UpdateIsRejectedIfSupplierNotSentTheOrder();
+        orderServiceRepository.UpdateIsRejectedIfSupplierNotSentTheOrder();
         LOG.info("------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
         LOG.info("\n-------------------------------------------------------------------------------");
 
     }
-    /**
-     * Case No.3 ->Transaksi Sampai
-     * TODO updae order supplier to orderStatus = 6 and confirmed_at = now() if confirmed_at = null and confirmed_expired_at < now()
-     */
-    @Scheduled(fixedDelay = "270s", initialDelay = "180s")
-    void executeUpdateStatusToDoneifConfirmedExpiredMoreThanToday(){
-        LOG.info("------- Case at: executeUpdateStatusToDoneifConfirmedExpiredMoreThanToday");
-        LOG.info("------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        orderService.UpdateIsRejectedIfSupplierNotSentTheOrder();
-        LOG.info("------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-        LOG.info("\n-------------------------------------------------------------------------------");
-    }
+//    /**
+//     * Case No.3 ->Transaksi Sampai
+//     * order status = 6
+//     * confirm_at today
+//     * ini sama dengan case reseller yang nomor 4
+//     * TODO update order supplier to orderStatus = 6 and confirmed_at = now() if confirmed_at = null and confirmed_expired_at < now()
+//     */
+//    @Scheduled(fixedDelay = "270s", initialDelay = "180s")
+//    void executeUpdateStatusToDoneifConfirmedExpiredMoreThanToday(){
+//        LOG.info("------- Case at: executeUpdateStatusToDoneifConfirmedExpiredMoreThanToday");
+//        LOG.info("------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
+//        orderService.UpdateIsRejectedIfSupplierNotSentTheOrder();
+//        LOG.info("------------------------------ END AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
+//        LOG.info("\n-------------------------------------------------------------------------------");
+//    }
 
     /**
      * Case Reminder
      * */
-    @Scheduled(fixedDelay = "5s")
-    void executeForReminder(){
-        LOG.info("\n\n\nCheck REMINDER --> ");
-        orderService.checkForReminder();
-        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
-        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
-    }
+//    @Scheduled(fixedDelay = "5s")
+//    void executeForReminder(){
+//        LOG.info("\n\n\nCheck REMINDER --> ");
+//        orderServiceRepository.checkForReminder();
+//        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
+//        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
+//    }
 
     protected RestTemplate getRestTemplate() {
         RestTemplate restTemplate = new RestTemplate();

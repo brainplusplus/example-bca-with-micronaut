@@ -1,12 +1,8 @@
+
 package bank.transaction.service.impl;
 
 import bank.transaction.service.domain.*;
-import io.micronaut.context.BeanContext;
-import io.micronaut.context.annotation.Bean;
-import io.micronaut.context.annotation.Factory;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-
 import javax.inject.Singleton;
 import java.text.SimpleDateFormat;
 import java.util.*;
