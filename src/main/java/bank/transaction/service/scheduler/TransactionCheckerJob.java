@@ -94,7 +94,6 @@ public class TransactionCheckerJob {
         LOG.info("------- Case at: executeEveryTen");
         LOG.info(" ------------------------------ EXECUTE AT :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
 //        LOG.info("JOB  :{}", new SimpleDateFormat("dd/M/yyyy hh:mm:ss").format(new Date()));
-
 //        Date fromDate = toDate(2019, 2,15);
 //        Date endDate = toDate(2019, 2, 15);
 

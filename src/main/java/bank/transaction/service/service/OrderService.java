@@ -309,8 +309,9 @@ public class OrderService {
         PreparedStatement preparedStatement = null;
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 2 DAY)  , " +
-                    "order_status = ?   where summaries_id = ?");
+            preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 2 DAY)  ," +
+                    "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 2 DAY)) " +
+                    "order_status = ? ,   where summaries_id = ?");
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2, id);
             preparedStatement.executeUpdate();
