@@ -13,8 +13,6 @@ import bank.transaction.service.repository.Oauth2OperationsBNI;
 import bank.transaction.service.repository.OrderServiceRepository;
 import bank.transaction.service.service.AccountStatementService;
 import bank.transaction.service.service.BcaService;
-import bank.transaction.service.service.ExpeditionService;
-import bank.transaction.service.service.OrderService;
 import io.micronaut.scheduling.annotation.Scheduled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +88,7 @@ public class TransactionCheckerJob {
      * Case No. 2 -> Reseller sudah melakukan pembayaran -> Approve akan otomatsi berjalan dan transaksi akan otomatis diteruskan ke supplier
      * TODO update order sumarries ->payment_status = 1, payment_verified_by = 0, payment_verified_at = now(), is_paid = 1
      * TODO update order suppliers ->supplier_feedback_expired_AT = now()+1 DAY, order_status = 1
+     * TODO Send Notification ONESIGNAL "Pesanan Berhasil dibayar" -> "Pembayaran pesananmu TDO/20190225/0000160 telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim."
      * */
     @Scheduled(fixedDelay = "270s", initialDelay = "30s")
     void executeEveryTen() throws Exception {
@@ -125,6 +124,7 @@ public class TransactionCheckerJob {
      * Case No. 3 Reseller -> Dikirim -> Pesanan kaan otomatis pindah ke transaksi sampai
      * CronJob berjalan setiap 4 jam sekali
      * TODO update order supplier -> delivery_status = 1 , order_status = 5 and confirmed_expired_at = now()+2 DAYS and is_delivered = 1 and delivered_at now()
+     * TODO Send Notification ONESIGNAL -> Pesanan Sampai -> "Pesananmu INV/20190225/00000005 telah sampai. Silahkan konfirmasi penerimaan pesananmu."
      * */
     @Scheduled(fixedDelay = "14400s", initialDelay = "60s")
     void executeEveryFourtyFive() throws Exception {
@@ -138,6 +138,7 @@ public class TransactionCheckerJob {
     /**
      * Case No. 4 Reseller-> "Reseller - Sampai" ->Pesanan akan otomatis pindah ke transaksi selesai
      * TODO Autocheck if confirmed_expired_at < now() and confirmed_at = null
+     * TODO send ONESIGNAL notification -> Pesanan Selesai -> "Pesananmu INV/20190225/00000005 telah selesai. Silahkan berikan penilaian pesananmu."
      * then update order_status = 6 and confirmed_at now()
      * + update saldo ke beranda supplier
      * */
@@ -199,14 +200,29 @@ public class TransactionCheckerJob {
 
     /**
      * Case Reminder
+     * TODO Notifikasi Pesanan Menunggu Pembayaran
+     * TODO Send Notification ONESIGNAL -> "Segera lakukan pembayaran sebesar Rp 1.234.000 untuk pesananmu TDO/20190225/0000160 sebelum 06-02-2019 22.32 untuk menghindari pembatalan."
      * */
-//    @Scheduled(fixedDelay = "5s")
-//    void executeForReminder(){
-//        LOG.info("\n\n\nCheck REMINDER --> ");
-//        orderServiceRepository.checkForReminder();
-//        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
-//        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
-//    }
+    @Scheduled(fixedDelay = "5s")
+    void executeForReminder(){
+        LOG.info("\n\n\nCheck REMINDER --> ");
+        orderServiceRepository.checkForReminder();
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
+    }
+
+    /**
+     * TODO Case Supplier - ONESIGNAL
+     * TODO "notifikasi segera kirim barang, input no. Resi"
+     *
+     * */
+    @Scheduled(fixedDelay = "5s")
+    void executeNotificationMustSendItem(){
+        LOG.info("\n\n\nCase Supplier --> ");
+        orderServiceRepository.sentNotifMustSentItem();
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("EEEE, dd MMMM yyyy").format(new Date()));
+        LOG.info("\n\n\nDate Format --> {}",new SimpleDateFormat("hh.mm").format(new Date()));
+    }
 
     protected RestTemplate getRestTemplate() {
         RestTemplate restTemplate = new RestTemplate();

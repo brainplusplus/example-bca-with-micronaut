@@ -19,9 +19,7 @@
 
 package bank.transaction.service.service;
 
-import bank.transaction.service.domain.Email;
-import bank.transaction.service.domain.EmailOrderDetail;
-import bank.transaction.service.domain.EmailPayment;
+import bank.transaction.service.domain.*;
 import bank.transaction.service.expedition.Order;
 import bank.transaction.service.expedition.OrderDetail;
 import bank.transaction.service.repository.OrderServiceRepository;
@@ -42,7 +40,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.HttpURLConnection;
-import java.net.ProtocolException;
 import java.net.URL;
 import java.sql.*;
 import java.text.SimpleDateFormat;
@@ -83,7 +80,7 @@ public class OrderService implements OrderServiceRepository {
          * */
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_summaries where total_amount = ? AND is_paid = 0 AND is_cancelled = 0 AND payment_expired_at >= NOW() AND payment_status in (0,3)");
+            preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id , a.reseller_data->'$.id' as reseller_id, date_format(b.awb_expired_at,'%d-%m %Y %h:%m') as awb_expired_at, date_format(b.supplier_feedback_expired_at,'%d-%m %Y %h:%m') as supplier_feedback_expired_at from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.total_amount = ? AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at >= NOW() AND a.payment_status in (0,3)");
             preparedStatement.setInt(1,amountValue);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -105,6 +102,14 @@ public class OrderService implements OrderServiceRepository {
                 SendMailNotification(
                         order,"confirm"
                 );
+                int reseller_id = resultSet.getInt("reseller_id");
+                int supplierId = resultSet.getInt("supplier_id");
+                String messageReseller = "Pembayaran pesananmu "+order.getOrderNumber()+" telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim.";
+                String messageSupplier = "Segera konfirmasi pesanan sebelum "+resultSet.getString("awb_expired_at")+" untuk memberitahu pembeli bahwa pesanan sedang kamu proses.";
+                String messageSmsToSupplier = "Pesanan Baru "+order.getOrderNumber()+"  telah dikonfirmasi. Kirim pesanan sebelum "+resultSet.getString("supplier_feedback_expired_at");
+                sendNotifOneSignalResellerForReminder(reseller_id, messageReseller);
+                sendNotifOneSignalSupplierForReminder(supplierId, messageSupplier);
+                sendSMSNotification(getPhoneNoSupplierById(supplierId),messageSmsToSupplier);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -332,8 +337,8 @@ public class OrderService implements OrderServiceRepository {
         PreparedStatement preparedStatement = null;
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 2 DAY)  ," +
-                    "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 2 DAY)) ," +
+            preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 1 DAY)  ," +
+                    "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 1 DAY)) ," +
                     "order_status = ?    where summaries_id = ?");
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2, id);
@@ -559,6 +564,76 @@ public class OrderService implements OrderServiceRepository {
     @Override
     @Transactional
     public void updateOrderStatusToDone(){
+        List<Integer> idOrderSup = getListOrderSupplierWantToBeDone();
+        idOrderSup.forEach(itx->{UpdateORderStatusOrderSupplier(itx);});
+    }
+
+
+    public void updateOrderStatusAsAPI(List<Integer> listIdOrderSup){
+        listIdOrderSup.forEach(itx->{UpdateORderStatusOrderSupplier(itx);});
+    }
+
+    public void UpdateORderStatusOrderSupplier(int id){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+
+        try
+        {
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? , confirmed_at = NOW() where id = ? ");
+            preparedStatement.setInt(1,6);//Order status -> DONE
+            preparedStatement.setInt(2,id);//id -> itx
+            preparedStatement.executeUpdate();
+            sendNotifWhereStatusIsDone();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public List<Integer> getListOrderSupplierWantToBeDone(){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        List<Integer> idOrderSupplier = new ArrayList<>();
+
+        try {
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select * from order_suppliers where confirmed_expired_at <= NOW() AND confirmed_at is null AND order_status = 5");
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                idOrderSupplier.add(resultSet.getInt("id"));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return idOrderSupplier;
+
+    }
+
+    public void sendNotifWhereStatusIsDone(){
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -566,11 +641,15 @@ public class OrderService implements OrderServiceRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? , confirmed_at = NOW() where confirmed_expired_at <= NOW() AND confirmed_at is null AND order_status = 5 ");
-            preparedStatement.setInt(1,6);//Order status -> DONE
-            preparedStatement.executeUpdate();
-
+            preparedStatement = con.prepareStatement("select a.*, b.reseller_data->'$.id' as reseller_id from order_suppliers a join order_summaries b on a.summaries_id = b.id where a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5");
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                String message = "Pesananmu "+resultSet.getString("invoice_number")+" telah selesai. Silahkan berikan penilaian pesananmu.";
+                sendNotifOneSignalSupplierForReminder(resultSet.getInt("reseller_id"),message);
+            }
         } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
             e.printStackTrace();
         } finally{
             try {
@@ -697,30 +776,30 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
-    public void UpdateOrderAllCompleted(){
-        Connection con = null;
-        Statement statement = null;
-        ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-
-        try {
-            for (Integer index : CheckOrderSummariesGetAllCompletedIsNull()) {
-                con = dataSource.getConnection();
-                preparedStatement = con.prepareStatement("select * from pdate order_suppliers set confirmed_at = CURDATE() , order_status = 6 where confirmed_expired_at < CURDATE() AND confirmed_at is null ");
-                preparedStatement.executeUpdate();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+//    public void UpdateOrderAllCompleted(){
+//        Connection con = null;
+//        Statement statement = null;
+//        ResultSet resultSet = null;
+//        PreparedStatement preparedStatement = null;
+//
+//        try {
+//            for (Integer index : CheckOrderSummariesGetAllCompletedIsNull()) {
+//                con = dataSource.getConnection();
+//                preparedStatement = con.prepareStatement("select * from pdate order_suppliers set confirmed_at = CURDATE() , order_status = 6 where confirmed_expired_at < CURDATE() AND confirmed_at is null ");
+//                preparedStatement.executeUpdate();
+//            }
+//        } catch (SQLException e) {
+//            e.printStackTrace();
+//        } finally{
+//            try {
+//                if(resultSet != null) resultSet.close();
+//                if(statement != null) statement.close();
+//                if(con != null) con.close();
+//            } catch (SQLException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
 
     public List<Integer> CheckOrderSummariesGetAllCompletedIsNull(){
         Connection con = null;
@@ -784,26 +863,33 @@ public class OrderService implements OrderServiceRepository {
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
         Email email = new Email();
-        EmailOrderDetail emailOrderDetail = new EmailOrderDetail();
         EmailPayment emailPayment = new EmailPayment();
         List<EmailPayment> emailPaymentList = new ArrayList<>();
 
         try {
 
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select id, payment_expired_at, order_number, total_amount, subtotal, transfer_unique_number, payment_data->'$.method' as method, payment_data->'$.via.BANK[0].code' as vendor, payment_data->'$.via.BANK[0].icon' as vendor_icon, payment_data->'$.via.BANK[0].name' as account_name, payment_data->'$.via.BANK[0].number' as account_number from order_summaries where payment_status = 0 AND DATE_SUB(payment_expired_at, interval 1 hour) between  NOW() AND DATE_ADD(NOW(), interval 5 minute) AND is_paid = 0 AND is_cancelled = 0");
+            preparedStatement = con.prepareStatement("select a.id, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number,b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 0 AND a.is_paid = 0 AND a.is_cancelled = 0 AND DATE_SUB(a.payment_expired_at, interval 1 hour) >= DATE_SUB(NOW(), interval 3 minute) AND DATE_SUB(a.payment_expired_at, interval 1 hour) <= DATE_ADD(NOW(), interval 3 minute)");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 Timestamp timestamp = resultSet.getTimestamp("payment_expired_at");
                 Date paymentExpiredAt = new Date(timestamp.getTime());
+
+//                messageParams.put("paymentExpired",);
+//                messageParams.put("orderNo",);
+//                messageParams.put("totalAmount",);
+                String paymentExpired = new SimpleDateFormat("dd/MM/yyyy hh:mm").format(paymentExpiredAt);
+                int totalAmount = resultSet.getInt("total_amount");
+                String orderNo = resultSet.getString("order_number");
+
                 String tanggal = new SimpleDateFormat("EEEE, dd MMMM yyyy").format(paymentExpiredAt);
                 String jam = new SimpleDateFormat("hh.mm").format(paymentExpiredAt);
                 //TODO set values to EmailPayment
-                emailPayment.setMethod(resultSet.getString("method"));
-                emailPayment.setVendor(resultSet.getString("vendor"));
-                emailPayment.setVendorIcon(resultSet.getString("vendor_icon "));
-                emailPayment.setAccountName(resultSet.getString("account_name"));
-                emailPayment.setAccountNo(resultSet.getString("aacount_number"));
+                emailPayment.setMethod(resultSet.getString("method").replace("\"","").replace("\"",""));
+                emailPayment.setVendor(resultSet.getString("vendor").replace("\"","").replace("\"",""));
+                emailPayment.setVendorIcon(resultSet.getString("vendor_icon").replace("\"","").replace("\"",""));
+                emailPayment.setAccountName(resultSet.getString("account_name").replace("\"","").replace("\"",""));
+                emailPayment.setAccountNo(resultSet.getString("account_number").replace("\"","").replace("\"",""));
                 emailPayment.setVendorBranch("Jelambar");
                 emailPaymentList.add(emailPayment);
 
@@ -816,15 +902,27 @@ public class OrderService implements OrderServiceRepository {
                 email.setSubtotal(resultSet.getInt("subtotal"));
                 email.setUniqueCode(resultSet.getInt("transfer_unique_number"));
 
+                String supplierId = resultSet.getString("supplier_id").replace("\"","").replace("\"","").replace(" ","");
+                String resellerId = resultSet.getString("reseller_id").replace("\"","").replace("\"","").replace(" ","");
+
+
                 Email updateValues = GetEmailOrderDetailForReminder(resultSet.getInt("id"), email);
 
-                updateValues = sendEmailReminder(resultSet.getInt("id"), updateValues);
+                updateValues = getEmailInformation(resultSet.getInt("id"), updateValues);
+
+                SendMailConfirm(updateValues);
+                String messageText ="Segera lakukan pembayaran sebesar Rp. "+totalAmount+" untuk pesananmu "+orderNo+" sebelum "+paymentExpired+" untuk menghindari pembatalan.";
+
+                sendNotifOneSignalSupplierForReminder(Integer.parseInt(supplierId), messageText);
+                sendNotifOneSignalResellerForReminder(Integer.parseInt(resellerId),messageText);
 
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
             e.printStackTrace();
         } finally{
             try {
@@ -894,7 +992,7 @@ public class OrderService implements OrderServiceRepository {
     }
 
 
-    public Email sendEmailReminder(int id, Email email) throws IOException {
+    public Email getEmailInformation(int id, Email email) throws IOException {
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -924,6 +1022,334 @@ public class OrderService implements OrderServiceRepository {
         }
 
         return email;
+    }
+
+    public void SendMailConfirm(Email email) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/email/confirm";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+//        String urlParameters = "order_number="+order.getOrderNumber()+"&email_to="+order.getEmailTo()+"&customer_name="+order.getCustomerName()+"&shipping_address="+order.getShippingAddress()+"&phone_number="+order.getPhoneNo()+"&total_price="+order.getTotalPrice()+"&total_payment="+order.getTotalPayment();
+//        LOG.info("\n\n\nORDER  -> {} ",urlParameters);
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(email.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+    public void sendNotifOneSignalSupplierForReminder(int supplierId, String message) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/onesignal";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+        OneSignal oneSignal = new OneSignal();
+        oneSignal = getSupplierIDForSendOneSignal(oneSignal,supplierId);
+        oneSignal.setMessage(message);
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(oneSignal.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+    public void sendNotifOneSignalSupplierForReminderUSINGSUPPLIERCODE(OneSignal oneSignal) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/onesignal";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(oneSignal.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+    public void sendNotifOneSignalResellerForReminder(int resellerId, String message) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/onesignal";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+        OneSignal oneSignal = new OneSignal();
+        oneSignal = getResellerIDForSendOneSignal(oneSignal,resellerId);
+        oneSignal.setMessage(message);
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(oneSignal.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+
+    public OneSignal getSupplierIDForSendOneSignal(OneSignal oneSignal, int id){//supplier id
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        HashMap map = new HashMap();
+
+        String playerId = "";
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select player_id from supplier where id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                oneSignal.setPlayerId(resultSet.getString("player_id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return oneSignal;
+
+    }
+
+    //TODO get Supplier -> player_id
+    public OneSignal getSupplierCodeForSendOneSignal(OneSignal oneSignal, String code){//supplier code
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select player_id from supplier where member_code = ? ");
+            preparedStatement.setString(1, code);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                oneSignal.setPlayerId(resultSet.getString("player_id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return oneSignal;
+
+    }
+
+    public OneSignal getResellerIDForSendOneSignal(OneSignal oneSignal, int id){//supplier id
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        HashMap map = new HashMap();
+
+        String playerId = "";
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select player_id from onesignal_player where reseller_id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                oneSignal.setPlayerId(resultSet.getString("player_id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return oneSignal;
+
+    }
+
+    public void sendSMSNotification(String phoneNo, String message) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/sms";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+        Sms sms = new Sms();
+        sms.setPhoneNo(phoneNo);
+        sms.setMessage(message);
+
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(sms.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+    public String getPhoneNoSupplierById(int id){//supplier id
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        String phoneNo = "";
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select handphone_no from supplier where id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                phoneNo = resultSet.getString("handphone_no");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return phoneNo;
+
+    }
+
+    public void sentNotifMustSentItem(){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        List<Integer> listOrderSummaries = new ArrayList<>();
+
+        try {
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("SELECT * FROM ( SELECT o.*,DATE_FORMAT(o.supplier_feedback_expired_at, '%d-%m-%Y %H.%i') as send_before, (select count(1) FROM notifications n where n.cols_id = o.id AND n.codes = 'SEND_ORDER' AND types = 'ONE_SIGNAL' ) AS is_sent FROM order_suppliers o where order_status = 3 and supplier_feedback_expired_at > NOW() AND  date_add(supplier_feedback_expired_at, interval -1 day) < NOW() ) A where is_sent =0");
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                String message = "Pesan "+resultSet.getString("invoice_number")+" menunggu dikirim. Segera kiirm dan input resi sebelum "+resultSet.getString("send_before");
+                OneSignal oneSignal = new OneSignal();
+                oneSignal = getSupplierCodeForSendOneSignal(oneSignal,resultSet.getString("supplier_code"));
+                oneSignal.setMessage(message);
+                sendNotifOneSignalSupplierForReminderUSINGSUPPLIERCODE(oneSignal);
+                CreateLogNotification(resultSet.getInt("id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void CreateLogNotification(int orderSupplierId){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+
+        try {
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("insert into notifications(cols_id,codes,types,created_by,created_at) values(?, 'SEND_ORDER','ONE_SIGNAL',0,now())");
+            preparedStatement.setInt(1,orderSupplierId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 //    public void medium(){

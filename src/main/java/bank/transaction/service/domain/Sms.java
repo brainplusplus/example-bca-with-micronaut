@@ -21,34 +21,32 @@ package bank.transaction.service.domain;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.inject.Singleton;
-import java.util.List;
 
 @Singleton
 public class Sms {
 
-    @JsonProperty("code")
-    private String code;
+    @JsonProperty("phone_number")
+    private String phoneNo;
 
-    @JsonProperty("code_message")
-    private String codeMessage;
+    @JsonProperty("message")
+    private String message;
 
-    @JsonProperty("code_type")
-    private String codeType;
 
-    @JsonProperty("data")
-    private List<SmsData> smsDataList;
+    public void setPhoneNo(String phoneNo) {
+        this.phoneNo = phoneNo;
+    }
 
-    public void setCode(String code) { this.code = code; }
-    public String getCode() { return code; }
+    public String getPhoneNo() {
+        return phoneNo;
+    }
 
-    public void setCodeMessage(String codeMessage) { this.codeMessage = codeMessage; }
-    public String getCodeMessage() { return codeMessage; }
+    public void setMessage(String message) {
+        this.message = message;
+    }
 
-    public void setCodeType(String codeType) { this.codeType = codeType; }
-    public String getCodeType() { return codeType; }
-
-    public void setSmsDataList(List<SmsData> smsDataList) { this.smsDataList = smsDataList; }
-    public List<SmsData> getSmsDataList() { return smsDataList; }
+    public String getMessage() {
+        return message;
+    }
 
     @Override
     public String toString() {

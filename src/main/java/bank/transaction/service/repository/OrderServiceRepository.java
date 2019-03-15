@@ -27,4 +27,5 @@ public interface OrderServiceRepository {
     void updateOrderStatusRejected();
     void UpdateIsRejectedIfSupplierNotSentTheOrder();
     void checkForReminder();
+    void sentNotifMustSentItem();
 }

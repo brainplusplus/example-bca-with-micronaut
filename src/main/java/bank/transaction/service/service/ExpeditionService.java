@@ -18,6 +18,7 @@
  */
 package bank.transaction.service.service;
 
+import bank.transaction.service.domain.OneSignal;
 import bank.transaction.service.expedition.Expedition;
 import bank.transaction.service.repository.ExpeditionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +31,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.sql.DataSource;
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -44,6 +46,11 @@ public class ExpeditionService implements ExpeditionRepository {
     @Inject
     @Named("tokdis")
     DataSource dataSource; // "warehouse" will be injected
+
+    @Inject
+    @Named("maintokdis")
+    DataSource dataSourceTokdisdev;
+
     private static final Logger LOG = LoggerFactory.getLogger(AccountStatementService.class);
     private final String HOST_NAME= "http://13.250.223.74:3002";
     private final String PATH_TRACK= "/api/v1/tracking/";
@@ -96,7 +103,9 @@ public class ExpeditionService implements ExpeditionRepository {
              * */
             if(expedition.getDelivered()){
                 try{
-                    updateOrderSupplierIfTrackedNumber(list.get("awbNumber"), list.get("kurir"));//
+                    updateOrderSupplierIfTrackedNumber(list.get("awbNumber"), list.get("kurir"));
+                    String messageText ="Pesananmu "+list.get("orderNumber")+" telah sampai. Silahkan konfirmasi penerimaan pesananmu.";
+                    sendNotifOneSignalResellerForReminder(Integer.parseInt(list.get("reseller_id")), messageText);
                 }
                 catch (Exception e)
                 {
@@ -120,9 +129,9 @@ public class ExpeditionService implements ExpeditionRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("SELECT a.shipping_data->'$.name' as kurir, a.awb_number FROM order_suppliers a "+
+            preparedStatement = con.prepareStatement("SELECT a.shipping_data->'$.name' as kurir, a.awb_number, b.reseller_data->'$.id' as reseller_id, b.order_number FROM order_suppliers a "+
                     "JOIN order_summaries b on (a.summaries_id = b.id) WHERE b.payment_status = 1 AND b.is_paid = 1 AND a.supplier_feedback_at is not null "+
-                    "AND a.is_delivered = 0 AND a.order_status in (4,5);");
+                    "AND a.is_delivered = 0 AND a.order_status in (4,5)");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 HashMap<String, String> map = new HashMap<>();
@@ -130,6 +139,8 @@ public class ExpeditionService implements ExpeditionRepository {
                 if(str.equals("jnt"))str="jet";
                 map.put("kurir",str);
                 map.put("awbNumber",resultSet.getString("awb_number"));
+                map.put("reseller_id",resultSet.getString("reseller_id"));
+                map.put("orderNumber",resultSet.getString("order_number"));
                 listawbnumber.add(map);
             }
         } catch (SQLException e) {
@@ -189,6 +200,101 @@ public class ExpeditionService implements ExpeditionRepository {
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * TODO ONESIGNAL - Pesanan Sampai -
+     * Message "Pesananmu INV/20190225/00000005 telah sampai. Silahkan konfirmasi penerimaan pesananmu."
+     * */
+    public void sendNotifOneSignalResellerForReminder(int resellerId, String message) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/onesignal";
+        URL obj = new URL(URL_TOKDIS);
+        HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+        OneSignal oneSignal = new OneSignal();
+        oneSignal = getResellerIDForSendOneSignal(oneSignal,resellerId);
+        oneSignal.setMessage(message);
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(oneSignal.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
+
+    public OneSignal getResellerIDForSendOneSignal(OneSignal oneSignal, int id){//resller id
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        HashMap map = new HashMap();
+
+        String playerId = "";
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select player_id from onesignal_player where reseller_id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                oneSignal.setPlayerId(resultSet.getString("player_id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return oneSignal;
+
+    }
+
+    public OneSignal getSupplierIDForSendOneSignal(OneSignal oneSignal, int id){//supplier id
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select player_id from supplier where id = ? ");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                oneSignal.setPlayerId(resultSet.getString("player_id"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return oneSignal;
+
     }
 
 
