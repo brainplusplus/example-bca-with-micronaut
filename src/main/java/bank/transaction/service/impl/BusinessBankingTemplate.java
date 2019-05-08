@@ -45,8 +45,8 @@ public class BusinessBankingTemplate extends AbstractBCAOperations implements Bu
 //        return restTemplate.postForObject(buildUrl("/banking/corporates/transfers"), inhouseTransferRequest, InhouseTransferResponse.class);
 //    }
 //
-    private String formatDate(Date date) {
 
+    private String formatDate(Date date) {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         return formatter.format(date);
     }

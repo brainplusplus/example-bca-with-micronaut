@@ -8,43 +8,68 @@ public class BNIParameter {
     @JsonProperty("responseCode")
     private String responseCode;
 
-    @JsonProperty("responseCode")
+    @JsonProperty("responseMessage")
     private String responseMessage;
 
-    @JsonProperty("responseCode")
+    @JsonProperty("responseTimestamp")
     private Date responseTimestamp;
 
-    @JsonProperty("responseCode")
-    private String customerName;
+    @JsonProperty("customerReference")
+    private String customerReference;
 
-    @JsonProperty("responseCode")
-    private String accountCurrency;
+    @JsonProperty("bankReference")
+    private String bankReference;
 
-    @JsonProperty("responseCode")
-    private String accountBalance;
+    @JsonProperty("previousResponse")
+    private BNIPreviousResponse bniPreviousResponse;
 
-    private BNIResponseStatement bniResponseStatement;
+    public void setResponseCode(String responseCode) {
+        this.responseCode = responseCode;
+    }
 
-    public void setResponseCode(String responseCode) { this.responseCode = responseCode; }
-    public String getResponseCode() { return responseCode; }
+    public String getResponseCode() {
+        return responseCode;
+    }
 
-    public void setResponseMessage(String responseMessage) { this.responseMessage = responseMessage; }
-    public String getResponseMessage() { return responseMessage; }
+    public void setResponseMessage(String responseMessage) {
+        this.responseMessage = responseMessage;
+    }
 
-    public void setResponseTimestamp(Date responseTimestamp) { this.responseTimestamp = responseTimestamp; }
-    public Date getResponseTimestamp() { return responseTimestamp; }
+    public String getResponseMessage() {
+        return responseMessage;
+    }
 
-    public void setCustomerName(String customerName) { this.customerName = customerName; }
-    public String getCustomerName() { return customerName; }
+    public void setResponseTimestamp(Date responseTimestamp) {
+        this.responseTimestamp = responseTimestamp;
+    }
 
-    public void setAccountCurrency(String accountCurrency) { this.accountCurrency = accountCurrency; }
-    public String getAccountCurrency() { return accountCurrency; }
+    public Date getResponseTimestamp() {
+        return responseTimestamp;
+    }
 
-    public void setAccountBalance(String accountBalance) { this.accountBalance = accountBalance; }
-    public String getAccountBalance() { return accountBalance; }
+    public String getCustomerReference() {
+        return customerReference;
+    }
 
-    public void setBniResponseStatement(BNIResponseStatement bniResponseStatement) { this.bniResponseStatement = bniResponseStatement; }
-    public BNIResponseStatement getBniResponseStatement() { return bniResponseStatement; }
+    public void setCustomerReference(String customerReference) {
+        this.customerReference = customerReference;
+    }
+
+    public String getBankReference() {
+        return bankReference;
+    }
+
+    public void setBankReference(String bankReference) {
+        this.bankReference = bankReference;
+    }
+
+    public void setBniPreviousResponse(BNIPreviousResponse bniPreviousResponse) {
+        this.bniPreviousResponse = bniPreviousResponse;
+    }
+
+    public BNIPreviousResponse getBniPreviousResponse() {
+        return bniPreviousResponse;
+    }
 
     @Override
     public String toString() {

@@ -2,7 +2,6 @@ package bank.transaction.service.impl;
 
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import javax.inject.Singleton;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +32,6 @@ public class AbstractBNIOperations {
     }
 
     final String buildUrl(String path, List<String> pathVariables, Map<String, Object> requestParam) {
-
         if (pathVariables != null) {
 
             for (String pathVariable : pathVariables) {

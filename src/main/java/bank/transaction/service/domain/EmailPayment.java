@@ -37,9 +37,6 @@ public class EmailPayment {
     @JsonProperty("account_number")
     private String accountNo;
 
-    @JsonProperty("vendor_branch")
-    private String vendorBranch;
-
     public void setMethod(String method) { this.method = method; }
     public String getMethod() { return method; }
 
@@ -55,8 +52,6 @@ public class EmailPayment {
     public void setAccountNo(String accountNo) { this.accountNo = accountNo; }
     public String getAccountNo() { return accountNo; }
 
-    public void setVendorBranch(String vendorBranch) { this.vendorBranch = vendorBranch; }
-    public String getVendorBranch() { return vendorBranch; }
 
     @Override
     public String toString() {

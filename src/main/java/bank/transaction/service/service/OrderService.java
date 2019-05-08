@@ -19,6 +19,7 @@
 
 package bank.transaction.service.service;
 
+import bank.transaction.service.Common;
 import bank.transaction.service.domain.*;
 import bank.transaction.service.expedition.Order;
 import bank.transaction.service.expedition.OrderDetail;
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import javax.net.ssl.HttpsURLConnection;
 import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -51,15 +53,19 @@ import java.util.stream.IntStream;
 public class OrderService implements OrderServiceRepository {
     @Inject
     @Named("tokdis")
-    DataSource dataSource; // "warehouse" will be injected
+    DataSource dataSource;
 
     @Inject
     @Named("maintokdis")
     DataSource dataSourceTokdisdev;
 
-    private static final Logger LOG = LoggerFactory.getLogger(OrderService.class);
-    public OrderService(){
+    private final NotificationService notificationService;
+    private final Common common;
 
+    private static final Logger LOG = LoggerFactory.getLogger(OrderService.class);
+    public OrderService(NotificationService notificationService, Common common){
+        this.common = common;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -73,6 +79,7 @@ public class OrderService implements OrderServiceRepository {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
+        List<Integer> orderIdLIst = new ArrayList<>();
         /*
          * TODO select order_summaries
          * parameter total_amount -> amount
@@ -83,33 +90,51 @@ public class OrderService implements OrderServiceRepository {
             preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id , a.reseller_data->'$.id' as reseller_id, date_format(b.awb_expired_at,'%d-%m %Y %h:%m') as awb_expired_at, date_format(b.supplier_feedback_expired_at,'%d-%m %Y %h:%m') as supplier_feedback_expired_at from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.total_amount = ? AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at >= NOW() AND a.payment_status in (0,3)");
             preparedStatement.setInt(1,amountValue);
             resultSet = preparedStatement.executeQuery();
+
             while(resultSet.next()){
-                Order order = new Order();
+                orderIdLIst.add(resultSet.getInt("id"));
+
                 updateToTokdis(resultSet.getInt("id"));
                 updateOrderSuppliers(resultSet.getInt("id"));
+//                String orderno = resultSet.getString("order_number");
+//
+//                try{
+//                    getSentEmail(resultSet.getInt("id"),"success");
+//                }
+//                catch (Exception ex)
+//                {
+//                    LOG.info("\n\n\nError at SendMailNotification in OrderService.");
+//                }
+//
+//                int reseller_id = resultSet.getInt("reseller_id");
+//                int supplierId = resultSet.getInt("supplier_id");
+////                String messageReseller = "Pembayaran pesananmu "+orderno+" telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim.";
+////                String messageSupplier = "Segera konfirmasi pesanan sebelum "+resultSet.getString("awb_expired_at")+" untuk memberitahu pembeli bahwa pesanan sedang kamu proses.";
+////                String messageSmsToSupplier = "Pesanan Baru "+orderno+"  telah dikonfirmasi. Kirim pesanan sebelum "+resultSet.getString("supplier_feedback_expired_at");
+//
+//                String awbExpiredAt = resultSet.getString("awb_expired_at");
+//                String supplierFeedbackExpiredAt = resultSet.getString("supplier_feedback_expired_at");
+//
+//                String messageReseller = String.format(common.MESSAGE_RESELLER_1,orderno);
+//                String messageSupplier = String.format(common.MESSAGE_SUPPLIER_1,awbExpiredAt);
+//                String messageSmsToSupplier = String.format(common.MESSAGE_SUPPLIER_2,orderno,supplierFeedbackExpiredAt);
+//
+//                LOG.info("\n\n Message -> {}",messageReseller);
+//                LOG.info("\n\n Message -> {}",messageSupplier);
+//                LOG.info("\n\n Message -> {}",messageSmsToSupplier);
+//
+//                sendSMSNotification(getPhoneNoSupplierById(supplierId), messageSmsToSupplier);
+//                sendNotifOneSignalResellerForReminder(reseller_id, messageReseller);
+//                sendNotifOneSignalSupplierForReminder(supplierId, messageSupplier);
+//                notificationService.resellerNotification(common.LOG_NOTIF, "Pesanan Berhasil Dibayar", messageReseller,reseller_id,1 ,"ADMIN_TO_RESELLER" );
+//                notificationService.supplierNotification(common.LOG_NOTIF, "Notifikasi Segera Proses", messageSupplier,supplierId,1 ,"ADMIN_TO_SUPPLIER" );
+            }
+//            LOG.info("\n\n\nHASIL -> {}",orderIdLIst.toString());
+            try{
+                HIT_API_TO_SERVER_AFTER_GET_STATEMENT(orderIdLIst);
+            }
+            catch (Exception e){
 
-                HashMap<String,List> result = getOrderProductDetail(resultSet.getInt("id"));
-                List<OrderDetail> orderDetails =  result.get("orderDetailsList");
-                order =  getInformationToEmail(resultSet.getInt("reseller_code"),order);
-                order.setOrderNumber(resultSet.getString("order_number"));
-                order.setTotalPayment(resultSet.getInt("total_amount"));
-                order.setTotalPrice(resultSet.getInt("subtotal"));
-                order.setShippingAddress(getAddress(resultSet.getInt("id")));
-//                order.setEmailTo("bobby@tokodistributor.com");
-                order.setPpn(0);
-                order.setOrderDetailList(orderDetails);
-                LOG.info("\n\n\norderDetails ---------------------------------- \n {}",orderDetails);
-                SendMailNotification(
-                        order,"confirm"
-                );
-                int reseller_id = resultSet.getInt("reseller_id");
-                int supplierId = resultSet.getInt("supplier_id");
-                String messageReseller = "Pembayaran pesananmu "+order.getOrderNumber()+" telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim.";
-                String messageSupplier = "Segera konfirmasi pesanan sebelum "+resultSet.getString("awb_expired_at")+" untuk memberitahu pembeli bahwa pesanan sedang kamu proses.";
-                String messageSmsToSupplier = "Pesanan Baru "+order.getOrderNumber()+"  telah dikonfirmasi. Kirim pesanan sebelum "+resultSet.getString("supplier_feedback_expired_at");
-                sendNotifOneSignalResellerForReminder(reseller_id, messageReseller);
-                sendNotifOneSignalSupplierForReminder(supplierId, messageSupplier);
-                sendSMSNotification(getPhoneNoSupplierById(supplierId),messageSmsToSupplier);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -156,7 +181,6 @@ public class OrderService implements OrderServiceRepository {
             preparedStatement.setInt(4, 1);
             preparedStatement.setInt(5, id);
             preparedStatement.executeUpdate();
-            LOG.info("\n\n\n\nCurrentDAte = {}",new java.sql.Timestamp(new Date().getTime()));
         } catch (SQLException e) {
             e.printStackTrace();
         } finally{
@@ -234,21 +258,20 @@ public class OrderService implements OrderServiceRepository {
 
 
                 Order order = new Order();
-//                HashMap<String,List> result = getOrderProductDetail(resultSet.getInt("id"));
                 List<OrderDetail> orderDetails =  result.get("orderDetailsList");
                 order =  getInformationToEmail(resultSet.getInt("reseller_code"),order);
                 order.setOrderNumber(resultSet.getString("order_number"));
                 order.setTotalPayment(resultSet.getInt("total_amount"));
                 order.setTotalPrice(resultSet.getInt("subtotal"));
                 order.setShippingAddress(getAddress(resultSet.getInt("id")));
-//                order.setEmailTo("bobby@tokodistributor.com");
                 order.setPpn(0);
                 order.setOrderDetailList(orderDetails);
-                LOG.info("\n\n\norderDetails ---------------------------------- \n {}",orderDetails);
-//                SendMailNotification(
-//                        order,"failed"
-//                );
+//                LOG.info("\n\n\norderDetails ---------------------------------- \n {}",orderDetails);
+                SendMailNotification(
+                        order,"failed"
+                );
 //                updateOrderSummariesIfCancelled(resultSet.getInt("id"));
+                //+ one signal -> kirim ke reseller
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -308,8 +331,7 @@ public class OrderService implements OrderServiceRepository {
         PreparedStatement preparedStatement = null;
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set order_status = 2  " +
-                    " where summaries_id = ?");
+            preparedStatement = con.prepareStatement("update order_suppliers set order_status = 2 , reason_rejected = 'SYSTEM_REJECTED_REASON_0', rejected_at = NOW(), is_rejected_by_system = 1, is_rejected = 1 where summaries_id = ?");
             preparedStatement.setInt(1,id);
             preparedStatement.executeUpdate();
 
@@ -339,7 +361,7 @@ public class OrderService implements OrderServiceRepository {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 1 DAY)  ," +
                     "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 1 DAY)) ," +
-                    "order_status = ?    where summaries_id = ?");
+                    "order_status = ? where summaries_id = ?");
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2, id);
             preparedStatement.executeUpdate();
@@ -370,7 +392,7 @@ public class OrderService implements OrderServiceRepository {
         try {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? where summaries_id = ?");
-            preparedStatement.setString(1,"Canceled");//waiting confirm <DO NOT FORGET TO CHANGE THIS>
+            preparedStatement.setString(1,common.CANCELLED);//waiting confirm <DO NOT FORGET TO CHANGE THIS>
             preparedStatement.setInt(2, id); // id summaries_id;
             preparedStatement.executeUpdate();
 
@@ -396,8 +418,6 @@ public class OrderService implements OrderServiceRepository {
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
 
-//        String urlParameters = "order_number="+order.getOrderNumber()+"&email_to="+order.getEmailTo()+"&customer_name="+order.getCustomerName()+"&shipping_address="+order.getShippingAddress()+"&phone_number="+order.getPhoneNo()+"&total_price="+order.getTotalPrice()+"&total_payment="+order.getTotalPayment();
-//        LOG.info("\n\n\nORDER  -> {} ",urlParameters);
         // Send post request
         connection.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
@@ -412,7 +432,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -422,7 +442,6 @@ public class OrderService implements OrderServiceRepository {
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
         HashMap map = new HashMap();
-
 
         try {
             con = dataSourceTokdisdev.getConnection();
@@ -436,10 +455,7 @@ public class OrderService implements OrderServiceRepository {
 
                 map.put("emailTo",resultSet.getString("email_address"));
                 map.put("customerName",resultSet.getString("fullname"));
-//                map.put("shippingAddress",resultSet.getString("fullname")); //order supplier->receiver
                 map.put("phoneNo",resultSet.getString("handphone"));
-//                map.put("totalPrice",resultSet.getString("handphone")); //order summaries ?
-//                map.put("totalPayment",resultSet.getString("handphone")); //order summaries ?
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -471,7 +487,7 @@ public class OrderService implements OrderServiceRepository {
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 alamat = resultSet.getString("alamat");
-                LOG.info("\n\n\nALAMAT == {}", alamat);
+//                LOG.info("\n\n\nALAMAT == {}", alamat);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -496,8 +512,6 @@ public class OrderService implements OrderServiceRepository {
         List<HashMap<String,Integer>> itemAndQty = new ArrayList<>();
         HashMap<String,List> result = new HashMap<>();
 
-        LOG.info("\n\n\n ID =========================================================");
-        LOG.info("\n\n\n ID = {}",id);
         try {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("select a.product_data, a.product_variation->'$[*].id' as id_item, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
@@ -508,9 +522,6 @@ public class OrderService implements OrderServiceRepository {
                 String jsonString = resultSet.getString("product_data");
                 String getItemList = resultSet.getString("id_item");
                 String getQtyList = resultSet.getString("qty");
-                LOG.info("\n\n\nGET ITEM LIST INDEX[{}] => {}",index,getItemList);
-                LOG.info("\nGET QTY LIST INDEX[{}] => {}",index,getQtyList);
-                LOG.info("\n-------------------------------------------------------");
                 getItemList = getItemList.replace("[","").replace("]","").replace(" ","");
                 getQtyList = getQtyList.replace("[","").replace("]","").replace(" ","");
                 List<String> idItemList = new ArrayList<>(Arrays.asList(getItemList.split(",")));
@@ -526,7 +537,7 @@ public class OrderService implements OrderServiceRepository {
                                 }
                         )
                 ;
-                LOG.info("\n\n\n itemAndQty == {}",itemAndQty);
+//                LOG.info("\n\n\n itemAndQty == {}",itemAndQty);
 
 //                for(int a = 0; a < idItemList.size(); a++){
 //                }
@@ -564,14 +575,16 @@ public class OrderService implements OrderServiceRepository {
     @Override
     @Transactional
     public void updateOrderStatusToDone(){
-        List<Integer> idOrderSup = getListOrderSupplierWantToBeDone();
-        idOrderSup.forEach(itx->{UpdateORderStatusOrderSupplier(itx);});
+        List<InvoiceIdAndResellerCode> idOrderSup = getListOrderSupplierWantToBeDone();
+
+//        idOrderSup.forEach(itx->{UpdateORderStatusOrderSupplier(itx);});
+        try {
+            HIT_API_TO_SERVER_AFTER_ORDER_IS_DONE(idOrderSup);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-
-    public void updateOrderStatusAsAPI(List<Integer> listIdOrderSup){
-        listIdOrderSup.forEach(itx->{UpdateORderStatusOrderSupplier(itx);});
-    }
 
     public void UpdateORderStatusOrderSupplier(int id){
         Connection con = null;
@@ -584,9 +597,9 @@ public class OrderService implements OrderServiceRepository {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? , confirmed_at = NOW() where id = ? ");
             preparedStatement.setInt(1,6);//Order status -> DONE
-            preparedStatement.setInt(2,id);//id -> itx
+            preparedStatement.setInt(2, id);//id -> itx
             preparedStatement.executeUpdate();
-            sendNotifWhereStatusIsDone();
+//            sendNotifWhereStatusIsDone();
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (Exception e) {
@@ -602,19 +615,22 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
-    public List<Integer> getListOrderSupplierWantToBeDone(){
+    public List<InvoiceIdAndResellerCode> getListOrderSupplierWantToBeDone(){
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-        List<Integer> idOrderSupplier = new ArrayList<>();
+
+
+        List<InvoiceIdAndResellerCode> invoiceIdAndResellerCodeList = new ArrayList<>();
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_suppliers where confirmed_expired_at <= NOW() AND confirmed_at is null AND order_status = 5");
+            preparedStatement = con.prepareStatement("select a.id, b.reseller_code from order_suppliers a join order_summaries b on a.summaries_id = b.id  where (a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5)");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
-                idOrderSupplier.add(resultSet.getInt("id"));
+                InvoiceIdAndResellerCode InvoiceIdAndResellerCode = new InvoiceIdAndResellerCode(resultSet.getInt("id"),resultSet.getInt("reseller_code"));
+                invoiceIdAndResellerCodeList.add(InvoiceIdAndResellerCode);
             }
 
         } catch (SQLException e) {
@@ -629,7 +645,7 @@ public class OrderService implements OrderServiceRepository {
             }
         }
 
-        return idOrderSupplier;
+        return invoiceIdAndResellerCodeList;
 
     }
 
@@ -641,11 +657,11 @@ public class OrderService implements OrderServiceRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.*, b.reseller_data->'$.id' as reseller_id from order_suppliers a join order_summaries b on a.summaries_id = b.id where a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5");
+            preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id from order_suppliers a join order_summaries b on a.summaries_id = b.id where a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
-                String message = "Pesananmu "+resultSet.getString("invoice_number")+" telah selesai. Silahkan berikan penilaian pesananmu.";
-                sendNotifOneSignalSupplierForReminder(resultSet.getInt("reseller_id"),message);
+                String messageSupplier = "Pesanan "+resultSet.getString("invoice_number")+" telah selesai. Dana akan terus diteruskan ke Saldo kamu.";
+                notificationService.supplierNotification(common.LOG_NOTIF, "Pesanan selesai", messageSupplier, resultSet.getInt("supplier_id"),1 ,"ADMIN_TO_SUPPLIER" );
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -671,11 +687,17 @@ public class OrderService implements OrderServiceRepository {
         UpdateQuantityOfItemWhenRejectOrder();
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set is_rejected = 1 , order_status = 2, supplier_feedback_at = CURDATE(), is_rejected_by_system = 1, rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_1' where supplier_feedback_expired_at <= CURDATE() AND supplier_feedback_at is null AND order_status = 1 ");
+            preparedStatement = con.prepareStatement("update order_suppliers set is_rejected = 1 , order_status = 2, supplier_feedback_at = NOW(), is_rejected_by_system = 1, rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_1' where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
 //            preparedStatement.setInt(1,6);//Order status -> DONE
             preparedStatement.executeUpdate();
 
+            ListIdInvoiceId listIdInvoiceId = new ListIdInvoiceId();
+            listIdInvoiceId.setInvoiceId(GET_LIST_INVOICE_ID_FOR_STATUS_REJECTED());
+            notificationService.NOTIFICATION_TRX_FAILED(common.LOG_NOTIF,listIdInvoiceId);
+
         } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         } finally{
             try {
@@ -688,6 +710,37 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
+    public List<Integer> GET_LIST_INVOICE_ID_FOR_STATUS_REJECTED(){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        List<Integer> listId = new ArrayList<>();
+        try {
+
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select * from order_suppliers where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
+//            preparedStatement.executeUpdate();
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                listId.add(resultSet.getInt("id"));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return listId;
+    }
+
     public List<HashMap<String,Integer>> getAllItemWhereWantToUpdateIt(){
         Connection con = null;
         Statement statement = null;
@@ -697,15 +750,24 @@ public class OrderService implements OrderServiceRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select b.product_variation->'$[*].id' as id_item, b.product_variation->'$[*].qty' as qty from order_suppliers a join order_products b on b.order_supplier_id = a.id where a.supplier_feedback_expired_at < CURDATE() AND a.supplier_feedback_at is null AND a.order_status = 1");
+            preparedStatement = con.prepareStatement("select b.product_variation->'$[*].id' as id_item, b.product_variation->'$[*].qty' as qty from order_suppliers a join order_products b on b.order_supplier_id = a.id where a.supplier_feedback_expired_at < NOW() AND a.supplier_feedback_at is null AND a.order_status = 1");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 HashMap<String,Integer> map = new HashMap();
-                map.put("id_item",resultSet.getInt("id_item"));
-                map.put("qty",resultSet.getInt("qty"));
-                LOG.info("\n\nID ITEM --> {}",resultSet.getInt("id_item"));;
-                LOG.info("\n\nqty qty --> {}",resultSet.getInt("qty"));
-                itemAndQty.add(map);
+
+                Array item = resultSet.getArray("id_item");
+                Array qty = resultSet.getArray("qty");
+                int[] listIdItem = (int[])item.getArray();
+                int[] listQty = (int[])qty.getArray();
+
+                for(int a=0;a<listIdItem.length;a++)
+                {
+                    map.put("id_item",listIdItem[a]);
+                    map.put("qty",listQty[a]);
+                    itemAndQty.add(map);
+                }
+
+
             }
 
         } catch (SQLException e) {
@@ -760,10 +822,16 @@ public class OrderService implements OrderServiceRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 ,rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_2' where awb_expired_at <= CURDATE() AND supplier_feedback_at  is not null ");
+            preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 ,rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_2' where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
             preparedStatement.executeUpdate();
 
+            ListIdInvoiceId listIdInvoiceId = new ListIdInvoiceId();
+            listIdInvoiceId.setInvoiceId(GET_LIST_INVOICE_ID());
+            notificationService.NOTIFICATION_TRX_FAILED(common.LOG_NOTIF,listIdInvoiceId);
+
         } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         } finally{
             try {
@@ -776,6 +844,37 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
+    public List<Integer> GET_LIST_INVOICE_ID(){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        List<Integer> listId = new ArrayList<>();
+
+        try {
+
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select * from order_suppliers where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                listId.add(resultSet.getInt("id"));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return listId;
+    }
+
 //    public void UpdateOrderAllCompleted(){
 //        Connection con = null;
 //        Statement statement = null;
@@ -785,7 +884,7 @@ public class OrderService implements OrderServiceRepository {
 //        try {
 //            for (Integer index : CheckOrderSummariesGetAllCompletedIsNull()) {
 //                con = dataSource.getConnection();
-//                preparedStatement = con.prepareStatement("select * from pdate order_suppliers set confirmed_at = CURDATE() , order_status = 6 where confirmed_expired_at < CURDATE() AND confirmed_at is null ");
+//                preparedStatement = con.prepareStatement("select * from pdate order_suppliers set confirmed_at = NOW() , order_status = 6 where confirmed_expired_at < NOW() AND confirmed_at is null ");
 //                preparedStatement.executeUpdate();
 //            }
 //        } catch (SQLException e) {
@@ -837,7 +936,6 @@ public class OrderService implements OrderServiceRepository {
         PreparedStatement preparedStatement = null;
 
         try {
-            LOG.info("QUERY \n\n\n update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
             con = dataSourceTokdisdev.getConnection();
             preparedStatement = con.prepareStatement("update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
             preparedStatement.executeUpdate();
@@ -890,7 +988,6 @@ public class OrderService implements OrderServiceRepository {
                 emailPayment.setVendorIcon(resultSet.getString("vendor_icon").replace("\"","").replace("\"",""));
                 emailPayment.setAccountName(resultSet.getString("account_name").replace("\"","").replace("\"",""));
                 emailPayment.setAccountNo(resultSet.getString("account_number").replace("\"","").replace("\"",""));
-                emailPayment.setVendorBranch("Jelambar");
                 emailPaymentList.add(emailPayment);
 
                 //TODO set values to Object
@@ -900,7 +997,7 @@ public class OrderService implements OrderServiceRepository {
                 email.setOrderNumber(resultSet.getString("order_number"));
                 email.setTotalPayment(resultSet.getInt("total_amount"));
                 email.setSubtotal(resultSet.getInt("subtotal"));
-                email.setUniqueCode(resultSet.getInt("transfer_unique_number"));
+                email.setUniqueCode(resultSet.getString("transfer_unique_number"));
 
                 String supplierId = resultSet.getString("supplier_id").replace("\"","").replace("\"","").replace(" ","");
                 String resellerId = resultSet.getString("reseller_id").replace("\"","").replace("\"","").replace(" ","");
@@ -910,7 +1007,7 @@ public class OrderService implements OrderServiceRepository {
 
                 updateValues = getEmailInformation(resultSet.getInt("id"), updateValues);
 
-                SendMailConfirm(updateValues);
+                SendMailConfirm(updateValues, "confirm");
                 String messageText ="Segera lakukan pembayaran sebesar Rp. "+totalAmount+" untuk pesananmu "+orderNo+" sebelum "+paymentExpired+" untuk menghindari pembatalan.";
 
                 sendNotifOneSignalSupplierForReminder(Integer.parseInt(supplierId), messageText);
@@ -942,22 +1039,25 @@ public class OrderService implements OrderServiceRepository {
         PreparedStatement preparedStatement = null;
         List<EmailOrderDetail> emailOrderDetailList = new ArrayList<>();
 
+//        LOG.info("\n\n\n==> id -> {}",id);
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.product_variation->'$[*].name' as name, a.product_data->'$.price' as price, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = ?");
+            preparedStatement = con.prepareStatement("select a.product_variation->'$[*].name' as name, a.product_data->'$.price' as price, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
+
+
                String getListName = resultSet.getString("name");
                String getListQty = resultSet.getString("qty");
                int price = resultSet.getInt("price");
 
-               getListName = getListName.replace("[","").replace("]","").replace(" ","");
-               getListQty = getListQty.replace("[","").replace("]","").replace(" ","");
+               getListName = getListName.replace("[","").replace("]","").replace(" ","").replace("\"","").replace("\"","");
+               getListQty = getListQty.replace("[","").replace("]","").replace(" ","").replace("\"","").replace("\"","");
+
                List<String> itemNameList = new ArrayList<>(Arrays.asList(getListName.split(",")));
                List<String> qtyItemList = new ArrayList<>(Arrays.asList(getListQty.split(",")));
-
 
                 IntStream.range(0, itemNameList.size())
                         .forEach(idx ->
@@ -966,13 +1066,13 @@ public class OrderService implements OrderServiceRepository {
                                     emailOrderDetail.setName(itemNameList.get(idx));
                                     emailOrderDetail.setPrice(price);
                                     emailOrderDetail.setQty(Integer.parseInt(qtyItemList.get(idx)));
+
                                     emailOrderDetail.setTotal(price * Integer.parseInt(qtyItemList.get(idx)));
-                                    emailOrderDetail.setEmail(email);
                                     emailOrderDetailList.add(emailOrderDetail);
                                 }
                         );
                 email.setEmailOrderDetailList(emailOrderDetailList);
-
+//                LOG.info("\n\n\n email  -> {}",email);
 
             }
 
@@ -997,8 +1097,6 @@ public class OrderService implements OrderServiceRepository {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-        HashMap map = new HashMap();
-
 
         try {
             con = dataSourceTokdisdev.getConnection();
@@ -1024,8 +1122,8 @@ public class OrderService implements OrderServiceRepository {
         return email;
     }
 
-    public void SendMailConfirm(Email email) throws Exception {
-        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/email/confirm";
+    public void SendMailConfirm(Email email, String status) throws Exception {
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/email/payment/"+status;
         URL obj = new URL(URL_TOKDIS);
         HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
 
@@ -1034,7 +1132,7 @@ public class OrderService implements OrderServiceRepository {
         connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
 
 //        String urlParameters = "order_number="+order.getOrderNumber()+"&email_to="+order.getEmailTo()+"&customer_name="+order.getCustomerName()+"&shipping_address="+order.getShippingAddress()+"&phone_number="+order.getPhoneNo()+"&total_price="+order.getTotalPrice()+"&total_payment="+order.getTotalPayment();
-//        LOG.info("\n\n\nORDER  -> {} ",urlParameters);
+
         // Send post request
         connection.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
@@ -1049,7 +1147,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -1078,7 +1176,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -1105,7 +1203,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -1134,7 +1232,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -1145,8 +1243,8 @@ public class OrderService implements OrderServiceRepository {
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
         HashMap map = new HashMap();
-
         String playerId = "";
+
         try {
             con = dataSourceTokdisdev.getConnection();
             preparedStatement = con.prepareStatement("select player_id from supplier where id = ? ");
@@ -1207,7 +1305,6 @@ public class OrderService implements OrderServiceRepository {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-        HashMap map = new HashMap();
 
         String playerId = "";
         try {
@@ -1260,7 +1357,7 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
+//        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -1299,18 +1396,21 @@ public class OrderService implements OrderServiceRepository {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-        List<Integer> listOrderSummaries = new ArrayList<>();
-
         try {
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("SELECT * FROM ( SELECT o.*,DATE_FORMAT(o.supplier_feedback_expired_at, '%d-%m-%Y %H.%i') as send_before, (select count(1) FROM notifications n where n.cols_id = o.id AND n.codes = 'SEND_ORDER' AND types = 'ONE_SIGNAL' ) AS is_sent FROM order_suppliers o where order_status = 3 and supplier_feedback_expired_at > NOW() AND  date_add(supplier_feedback_expired_at, interval -1 day) < NOW() ) A where is_sent =0");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
-                String message = "Pesan "+resultSet.getString("invoice_number")+" menunggu dikirim. Segera kiirm dan input resi sebelum "+resultSet.getString("send_before");
+                String supplierCode = resultSet.getString("supplier_code");
+                String message = "Pesan "+resultSet.getString("invoice_number")+" menunggu dikirim. Segera kirim dan input resi sebelum "+resultSet.getString("send_before");
                 OneSignal oneSignal = new OneSignal();
-                oneSignal = getSupplierCodeForSendOneSignal(oneSignal,resultSet.getString("supplier_code"));
+                oneSignal = getSupplierCodeForSendOneSignal(oneSignal,supplierCode);
                 oneSignal.setMessage(message);
                 sendNotifOneSignalSupplierForReminderUSINGSUPPLIERCODE(oneSignal);
+
+                int supplierId = getSupplierIDByCodeForSendOneSignal(supplierCode);
+
+                notificationService.supplierNotification(common.LOG_NOTIF, "Notifikasi Segera Proses", message,supplierId,1 ,"ADMIN_TO_SUPPLIER" );
                 CreateLogNotification(resultSet.getInt("id"));
             }
         } catch (SQLException e) {
@@ -1352,16 +1452,181 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
-//    public void medium(){
-//        List<String> namaMahasisawa = new ArrayList<>();
-//        namaMahasisawa.add("Akyong");
-//        namaMahasisawa.add("Bobby");
-//        namaMahasisawa.add("Jeni");
-//        namaMahasisawa.add("Johan");
-//
-//        for (int a = 0; a< namaMahasisawa.size(); a++) {
-//            System.out.println("Nama Mahasiswa -> "+ namaMahasisawa.get(a));
-//        }
-//    }
+    //TODO get Supplier -> player_id
+    public Integer getSupplierIDByCodeForSendOneSignal(String code){//supplier code
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        int supplierId = 0;
+        try {
+            con = dataSourceTokdisdev.getConnection();
+            preparedStatement = con.prepareStatement("select id from supplier where member_code = ? ");
+            preparedStatement.setString(1, code);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                supplierId = resultSet.getInt("id");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return supplierId;
+    }
+
+    public Email getSentEmail(int id, String status){
+        Connection con = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+        Email email = new Email();
+        EmailPayment emailPayment = new EmailPayment();
+        List<EmailPayment> emailPaymentList = new ArrayList<>();
+
+        try {
+
+            con = dataSource.getConnection();
+            preparedStatement = con.prepareStatement("select a.id,a.total_delivery_fee, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number,b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 1 AND a.is_paid = 1 AND a.is_cancelled = 0 and a.id = ?");
+            preparedStatement.setInt(1, id);
+            resultSet = preparedStatement.executeQuery();
+            while(resultSet.next()){
+                Timestamp timestamp = resultSet.getTimestamp("payment_expired_at");
+                Date paymentExpiredAt = new Date(timestamp.getTime());
+
+                String tanggal = new SimpleDateFormat("EEEE, dd MMMM yyyy").format(paymentExpiredAt);
+                String jam = new SimpleDateFormat("hh.mm").format(paymentExpiredAt);
+                //TODO set values to EmailPayment
+                emailPayment.setMethod(resultSet.getString("method").replace("\"","").replace("\"",""));
+                emailPayment.setVendor(resultSet.getString("vendor").replace("\"","").replace("\"",""));
+                emailPayment.setVendorIcon(resultSet.getString("vendor_icon").replace("\"","").replace("\"",""));
+                emailPayment.setAccountName(resultSet.getString("account_name").replace("\"","").replace("\"",""));
+                emailPayment.setAccountNo(resultSet.getString("account_number").replace("\"","").replace("\"",""));
+                emailPaymentList.add(emailPayment);
+                //TODO set values to Object
+                email.setEmailPaymentList(emailPaymentList);
+                email.setLastPaymentDate(tanggal);
+                email.setLastPaymentHour(jam);
+                email.setOrderNumber(resultSet.getString("order_number"));
+                email.setTotalPayment(resultSet.getInt("total_amount"));
+                email.setSubtotal(resultSet.getInt("subtotal"));
+                email.setUniqueCode(resultSet.getString("transfer_unique_number"));
+                email.setShippingFee(resultSet.getInt("total_delivery_fee"));
+
+                Email updateValues = GetEmailOrderDetailForReminder(resultSet.getInt("id"), email);
+                updateValues = getEmailInformation(resultSet.getInt("reseller_id"), updateValues);
+
+                SendMailConfirm(updateValues, status);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally{
+            try {
+                if(resultSet != null) resultSet.close();
+                if(statement != null) statement.close();
+                if(con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return email;
+
+        
+
+    }
+
+    public void HIT_API_TO_SERVER_AFTER_GET_STATEMENT(List<Integer> listOrderId) throws Exception {
+
+        String URL_TOKDIS = "";
+        if (common.LOG_NOTIF=="dev")
+        {
+            URL_TOKDIS = "https://transaction.tokodistributor.net/notification/order_paid";
+        }
+        else if (common.LOG_NOTIF=="prod")
+        {
+            URL_TOKDIS = "https://transaction.tokodistributor.com/notification/order_paid";
+        }
+
+        URL obj = new URL(URL_TOKDIS);
+        HttpsURLConnection connection = (HttpsURLConnection) obj.openConnection();
+        ListIdOrderId listIdOrderId = new ListIdOrderId();
+        listIdOrderId.setOrderId(listOrderId);
+
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(listIdOrderId.toString());
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+//        LOG.info("\n\n\n BCA -> Response => {}",response);
+        in.close();
+    }
+
+    public void HIT_API_TO_SERVER_AFTER_ORDER_IS_DONE(List<InvoiceIdAndResellerCode> invoiceIdAndResellerCodeList) throws Exception {
+
+        String URL_TOKDIS = "";
+        if (common.LOG_NOTIF=="dev")
+        {
+            URL_TOKDIS = "https://transaction.tokodistributor.net/confirm/accept_automatic";
+        }
+        else if (common.LOG_NOTIF=="prod")
+        {
+            URL_TOKDIS = "https://transaction.tokodistributor.com/confirm/accept_automatic";
+        }
+
+        URL obj = new URL(URL_TOKDIS);
+        HttpsURLConnection connection = (HttpsURLConnection) obj.openConnection();
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        String jsonformat = mapper.writeValueAsString(invoiceIdAndResellerCodeList);
+
+//        LOG.info("\n\n\n=========== {}",abc);
+
+        //add reuqest header
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
+
+        // Send post request
+        connection.setDoOutput(true);
+        DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+        wr.writeBytes(jsonformat);
+        wr.flush();
+        wr.close();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+//        LOG.info("\n\n\n Response => {}",response);
+        in.close();
+    }
 
 }

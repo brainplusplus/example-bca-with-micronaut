@@ -49,7 +49,7 @@ public class Email {
     private int shippingFee;
 
     @JsonProperty("unique_code")
-    private int uniqueCode;
+    private String uniqueCode;
 
     @JsonProperty("order_detail")
     private List<EmailOrderDetail> emailOrderDetailList;
@@ -81,8 +81,8 @@ public class Email {
     public void setTotalPayment(int totalPayment) { this.totalPayment = totalPayment; }
     public int getTotalPayment() { return totalPayment; }
 
-    public void setUniqueCode(int uniqueCode) { this.uniqueCode = uniqueCode; }
-    public int getUniqueCode() { return uniqueCode; }
+    public void setUniqueCode(String uniqueCode) { this.uniqueCode = uniqueCode; }
+    public String getUniqueCode() { return uniqueCode; }
 
     public void setEmailOrderDetailList(List<EmailOrderDetail> emailOrderDetailList) { this.emailOrderDetailList = emailOrderDetailList; }
     public List<EmailOrderDetail> getEmailOrderDetailList() { return emailOrderDetailList; }

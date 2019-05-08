@@ -37,8 +37,6 @@ public class EmailOrderDetail {
     @JsonProperty("total")
     private int total;
 
-    private Email email;
-
     public void setName(String name) { this.name = name; }
     public String getName() { return name; }
 
@@ -50,9 +48,6 @@ public class EmailOrderDetail {
 
     public void setTotal(int total) { this.total = total; }
     public int getTotal() { return total; }
-
-    public void setEmail(Email email) { this.email = email; }
-    public Email getEmail() { return email; }
 
     @Override
     public String toString() {

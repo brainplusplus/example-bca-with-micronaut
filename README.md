@@ -1,13 +1,10 @@
 # Bank Transaction Service
 
-Aplikasi ini dibuat khusus untuk melakukan cek mutasi (Account Statement) pada
-bank <b>BCA</b>.
-
-Link untuk test:
-`https://sandbox.bca.co.id`
-
-Link untuk production: 
-`https://api.klikbca.com`
+Revisi application :
+- Remove Check BCA Statement 
+    -   BCA Statement's Job moved to App `bank-services`
+    
+This application running on port: `8081` 
 
 What this app use?
 1. Spring-core
@@ -17,7 +14,7 @@ What this app use?
 5. JPA
 6. Hibernate-Validator
 7. Common-codec
-8. Hikari
+8. Hikari -> Max Connection Pool Size is 5
 
 Hasil akhir berupa sebuah `.jar`.
 

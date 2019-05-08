@@ -2,23 +2,24 @@ package bank.transaction.service.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.inject.Singleton;
 import java.util.List;
-
+@Singleton
 public class BNIResponseStatement {
 
     @JsonProperty("cliendId")
     private String cliendId;
 
     @JsonProperty("parameters")
-    private List<BNIParameter> bniParameterList;
+    private BNIParameter bniParameter;
 
     private BNIStatement bniStatement;
 
     public void setCliendId(String cliendId) { this.cliendId = cliendId; }
     public String getCliendId() { return cliendId; }
 
-    public void setBniParameterList(List<BNIParameter> bniParameterList) { this.bniParameterList = bniParameterList; }
-    public List<BNIParameter> getBniParameterList() { return bniParameterList; }
+    public void setBniParameter(BNIParameter bniParameter) { this.bniParameter = bniParameter; }
+    public BNIParameter getBniParameter() { return bniParameter; }
 
     public void setBniStatement(BNIStatement bniStatement) { this.bniStatement = bniStatement; }
     public BNIStatement getBniStatement() { return bniStatement; }

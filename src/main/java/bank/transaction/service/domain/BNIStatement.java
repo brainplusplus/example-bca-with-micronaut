@@ -25,15 +25,15 @@ import java.util.List;
 
 @Singleton
 public class BNIStatement {
-    @JsonProperty("getBalanceResponse")
-    private List<BNIResponseStatement> bniResponseStatementList;
+    @JsonProperty("getPaymentStatusResponse")
+    private BNIResponseStatement bniResponseStatement;
 
-    public void setBniResponseStatementList(List<BNIResponseStatement> bniResponseStatementList) {
-        this.bniResponseStatementList = bniResponseStatementList;
+    public void setBniResponseStatement(BNIResponseStatement bniResponseStatement) {
+        this.bniResponseStatement = bniResponseStatement;
     }
 
-    public List<BNIResponseStatement> getBniResponseStatementList() {
-        return bniResponseStatementList;
+    public BNIResponseStatement getBniResponseStatement() {
+        return bniResponseStatement;
     }
 
     @Override

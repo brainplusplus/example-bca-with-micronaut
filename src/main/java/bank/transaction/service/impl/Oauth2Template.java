@@ -21,6 +21,8 @@ package bank.transaction.service.impl;
 
 import bank.transaction.service.domain.AccessGrant;
 import bank.transaction.service.repository.Oauth2Operations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -33,15 +35,15 @@ import java.util.Base64;
 
 @Singleton
 public class Oauth2Template extends AbstractBCAOperations implements Oauth2Operations {
-
+    private static final Logger LOG = LoggerFactory.getLogger(Oauth2Template.class);
     public Oauth2Template() {
         this.restTemplate = new RestTemplate();
         restTemplate.setErrorHandler(new BCAErrorHandler());
+//        this.restTemplate = restTemplate;
     }
 
     @Override
     public AccessGrant getToken(String clientId, String clientSecret) {
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.add("Authorization", getAuthorization(clientId, clientSecret));
@@ -51,7 +53,7 @@ public class Oauth2Template extends AbstractBCAOperations implements Oauth2Opera
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
-        return restTemplate.postForObject(buildUrl("/api/oauth/token"), request, AccessGrant.class);
+        return restTemplate.postForObject(buildUrl("/api/oauth/token"),request, AccessGrant.class);
     }
 
     private String getAuthorization(String clientId, String clientSecret) {

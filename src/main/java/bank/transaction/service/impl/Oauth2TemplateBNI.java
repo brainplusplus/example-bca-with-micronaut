@@ -43,15 +43,12 @@ public class Oauth2TemplateBNI extends AbstractBNIOperations implements Oauth2Op
 
     @Override
     public AccessGrant getToken(String clientId, String clientSecret) {
-        LOG.info("\n\n\nAuthorization -> {}",getAuthorization(clientId, clientSecret));
-
+        final String authorization = getAuthorization(clientId, clientSecret);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.add("Authorization", getAuthorization(clientId, clientSecret));
-
+        headers.add("Authorization", authorization);
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
-
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
         return restTemplate.postForObject(buildUrl("/api/oauth/token"), request, AccessGrant.class);

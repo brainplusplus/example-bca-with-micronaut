@@ -18,6 +18,8 @@
  */
 package bank.transaction.service.service;
 
+import bank.transaction.service.domain.AccessGrant;
+import bank.transaction.service.repository.Oauth2OperationsBNI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +41,5 @@ public class BNIService {
 
     }
 
-    public void getToken(){
 
-    }
 }

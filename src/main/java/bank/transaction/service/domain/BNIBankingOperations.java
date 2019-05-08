@@ -5,5 +5,5 @@ import java.util.Date;
 
 @Singleton
 public interface BNIBankingOperations {
-    AccountStatement getStatement(String corporateId, String accountNo, Date startDate, Date endDate);
+    BNIStatement getPaymentStatus(String customerReferenceNumber,  AccessGrant accessGrant);
 }

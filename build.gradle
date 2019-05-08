@@ -50,7 +50,7 @@ dependencies {
     // https://mvnrepository.com/artifact/org.springframework/spring-core
     compile group: 'org.springframework', name: 'spring-core', version: '5.1.4.RELEASE'
 
-    compile "io.micronaut:micronaut-multitenancy"
+    compile "io.micronaut:micronaut-multitenancy" //multiple database
 
     //tag::validator[]
     compile "io.micronaut.configuration:micronaut-hibernate-validator"

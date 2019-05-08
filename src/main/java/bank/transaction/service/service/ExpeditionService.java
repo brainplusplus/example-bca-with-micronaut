@@ -16,6 +16,7 @@
  *
  * Author : Bobby
  */
+
 package bank.transaction.service.service;
 
 import bank.transaction.service.domain.OneSignal;
@@ -37,7 +38,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
@@ -64,11 +64,9 @@ public class ExpeditionService implements ExpeditionRepository {
         List<HashMap<String,String>> hashMapList =  getListOfAwbNumber();
         String url = "";
         for (HashMap<String,String> list: hashMapList) {
-            String kurir = list.get("kurir");
 
             url = HOST_NAME+PATH_TRACK+list.get("kurir")+"/"+list.get("awbNumber");
-            LOG.info("\n\n\nURL = {}",url);
-
+            LOG.info("URL => {} ", url);
             URL obj = new URL(url);
             HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
 
@@ -78,7 +76,6 @@ public class ExpeditionService implements ExpeditionRepository {
             //add request header
             connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
 
-            int responseCode = connection.getResponseCode();
 
             BufferedReader in = new BufferedReader(
                     new InputStreamReader(connection.getInputStream()));
@@ -101,9 +98,12 @@ public class ExpeditionService implements ExpeditionRepository {
              * is_delivered = 1
              * delivered_at = new date
              * */
+
             if(expedition.getDelivered()){
                 try{
-                    updateOrderSupplierIfTrackedNumber(list.get("awbNumber"), list.get("kurir"));
+                    String str = list.get("kurir");
+                    if(str.equals("jet"))str="jnt";
+                    updateOrderSupplierIfTrackedNumber(list.get("awbNumber"), str);
                     String messageText ="Pesananmu "+list.get("orderNumber")+" telah sampai. Silahkan konfirmasi penerimaan pesananmu.";
                     sendNotifOneSignalResellerForReminder(Integer.parseInt(list.get("reseller_id")), messageText);
                 }
@@ -113,10 +113,12 @@ public class ExpeditionService implements ExpeditionRepository {
                 }
             }
 
+//            try {
+//            }
+//            catch (Exception e){
+//                e.printStackTrace();
+//            }
 
-
-//            LOG.info("\n\n\nPRINT RESULT expedition = {}", expedition);
-//            LOG.info("\n\n\nPRINT RESULT expedition detail= {}", expedition.getExpeditionDetailList());
         }
     }
 
@@ -129,18 +131,19 @@ public class ExpeditionService implements ExpeditionRepository {
 
         try {
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("SELECT a.shipping_data->'$.name' as kurir, a.awb_number, b.reseller_data->'$.id' as reseller_id, b.order_number FROM order_suppliers a "+
+            preparedStatement = con.prepareStatement("SELECT a.shipping_data->'$.name' as kurir, a.awb_number, b.reseller_data->'$.id' as reseller_id, a.invoice_number FROM order_suppliers a "+
                     "JOIN order_summaries b on (a.summaries_id = b.id) WHERE b.payment_status = 1 AND b.is_paid = 1 AND a.supplier_feedback_at is not null "+
                     "AND a.is_delivered = 0 AND a.order_status in (4,5)");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 HashMap<String, String> map = new HashMap<>();
                 String str = resultSet.getString("kurir").replace("\"", "").toLowerCase();
-                if(str.equals("jnt"))str="jet";
+
+
                 map.put("kurir",str);
                 map.put("awbNumber",resultSet.getString("awb_number"));
                 map.put("reseller_id",resultSet.getString("reseller_id"));
-                map.put("orderNumber",resultSet.getString("order_number"));
+                map.put("orderNumber",resultSet.getString("invoice_number"));
                 listawbnumber.add(map);
             }
         } catch (SQLException e) {
@@ -171,22 +174,23 @@ public class ExpeditionService implements ExpeditionRepository {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-
+        LOG.info("track hits 0 ");
         try {
+            LOG.info("track hits 1");
             con = dataSource.getConnection();
             preparedStatement = con.prepareStatement("update order_suppliers set " +
                     "delivery_status = ? , " +
                     "order_status = ? , " +
-                    "confirmed_expired_at = DATE_ADD(delivered_at, INTERVAL 2 DAY) , " +
+                    "confirmed_expired_at = DATE_ADD(NOW(), INTERVAL 2 DAY) , " +
                     "is_delivered = ? , " +
-                    "delivered_at = ? " +
+                    "delivered_at =  NOW() " +
                     "where awb_number = ? AND shipping_data->'$.name' = ? ");
+
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2,5);//waiting confirmation
             preparedStatement.setInt(3, 1);
-            preparedStatement.setTimestamp(4, new java.sql.Timestamp(new Date().getTime()));
-            preparedStatement.setString(5, awbnumber); // id awb_numer;
-            preparedStatement.setString(6, kurir.toUpperCase()); // id awb_numer;
+            preparedStatement.setString(4, awbnumber); // id awb_numer;
+            preparedStatement.setString(5, kurir.toUpperCase()); // id awb_numer;
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
@@ -213,6 +217,7 @@ public class ExpeditionService implements ExpeditionRepository {
         OneSignal oneSignal = new OneSignal();
         oneSignal = getResellerIDForSendOneSignal(oneSignal,resellerId);
         oneSignal.setMessage(message);
+
         //add reuqest header
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
@@ -231,7 +236,6 @@ public class ExpeditionService implements ExpeditionRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-        LOG.info("\n\n\n Response => {}",response);
         in.close();
     }
 
@@ -296,6 +300,5 @@ public class ExpeditionService implements ExpeditionRepository {
         return oneSignal;
 
     }
-
 
 }

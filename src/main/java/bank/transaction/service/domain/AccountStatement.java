@@ -18,6 +18,7 @@
  */
 package bank.transaction.service.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.annotation.Nullable;
@@ -68,6 +69,10 @@ public class AccountStatement {
     @JsonProperty("StartBalance")
     private BigDecimal startBalance;
 
+    @JsonIgnore
+    @Column(name="bank")
+    private String bank;
+
     @Nullable
     @OneToMany(mappedBy = "accountStatement")
     @JsonProperty("Data")
@@ -97,6 +102,14 @@ public class AccountStatement {
     public void setStartBalance(BigDecimal startBalance) { this.startBalance = startBalance; }
 
     public BigDecimal getStartBalance() { return startBalance; }
+
+    public void setBank(String bank) {
+        this.bank = bank;
+    }
+
+    public String getBank() {
+        return bank;
+    }
 
     public List<AccountStatementDetail> getAccountStatementDetailList() {
         return accountStatementDetailList;
