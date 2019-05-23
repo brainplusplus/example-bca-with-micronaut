@@ -96,38 +96,6 @@ public class OrderService implements OrderServiceRepository {
 
                 updateToTokdis(resultSet.getInt("id"));
                 updateOrderSuppliers(resultSet.getInt("id"));
-//                String orderno = resultSet.getString("order_number");
-//
-//                try{
-//                    getSentEmail(resultSet.getInt("id"),"success");
-//                }
-//                catch (Exception ex)
-//                {
-//                    LOG.info("\n\n\nError at SendMailNotification in OrderService.");
-//                }
-//
-//                int reseller_id = resultSet.getInt("reseller_id");
-//                int supplierId = resultSet.getInt("supplier_id");
-////                String messageReseller = "Pembayaran pesananmu "+orderno+" telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim.";
-////                String messageSupplier = "Segera konfirmasi pesanan sebelum "+resultSet.getString("awb_expired_at")+" untuk memberitahu pembeli bahwa pesanan sedang kamu proses.";
-////                String messageSmsToSupplier = "Pesanan Baru "+orderno+"  telah dikonfirmasi. Kirim pesanan sebelum "+resultSet.getString("supplier_feedback_expired_at");
-//
-//                String awbExpiredAt = resultSet.getString("awb_expired_at");
-//                String supplierFeedbackExpiredAt = resultSet.getString("supplier_feedback_expired_at");
-//
-//                String messageReseller = String.format(common.MESSAGE_RESELLER_1,orderno);
-//                String messageSupplier = String.format(common.MESSAGE_SUPPLIER_1,awbExpiredAt);
-//                String messageSmsToSupplier = String.format(common.MESSAGE_SUPPLIER_2,orderno,supplierFeedbackExpiredAt);
-//
-//                LOG.info("\n\n Message -> {}",messageReseller);
-//                LOG.info("\n\n Message -> {}",messageSupplier);
-//                LOG.info("\n\n Message -> {}",messageSmsToSupplier);
-//
-//                sendSMSNotification(getPhoneNoSupplierById(supplierId), messageSmsToSupplier);
-//                sendNotifOneSignalResellerForReminder(reseller_id, messageReseller);
-//                sendNotifOneSignalSupplierForReminder(supplierId, messageSupplier);
-//                notificationService.resellerNotification(common.LOG_NOTIF, "Pesanan Berhasil Dibayar", messageReseller,reseller_id,1 ,"ADMIN_TO_RESELLER" );
-//                notificationService.supplierNotification(common.LOG_NOTIF, "Notifikasi Segera Proses", messageSupplier,supplierId,1 ,"ADMIN_TO_SUPPLIER" );
             }
 //            LOG.info("\n\n\nHASIL -> {}",orderIdLIst.toString());
             try{
@@ -815,6 +783,10 @@ public class OrderService implements OrderServiceRepository {
     @Override
     @Transactional
     public void UpdateIsRejectedIfSupplierNotSentTheOrder(){
+
+        /**
+         * @NOTED + brankas
+         * */
         Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -967,7 +939,7 @@ public class OrderService implements OrderServiceRepository {
         try {
 
             con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.id, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number,b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 0 AND a.is_paid = 0 AND a.is_cancelled = 0 AND DATE_SUB(a.payment_expired_at, interval 1 hour) >= DATE_SUB(NOW(), interval 3 minute) AND DATE_SUB(a.payment_expired_at, interval 1 hour) <= DATE_ADD(NOW(), interval 3 minute)");
+            preparedStatement = con.prepareStatement("select a.id, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number, b.shipping_data->'$.price' as shipping_fee, b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 0 AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at <= DATE_SUB(NOW(), interval -1 hour)");
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 Timestamp timestamp = resultSet.getTimestamp("payment_expired_at");
@@ -994,24 +966,26 @@ public class OrderService implements OrderServiceRepository {
                 email.setEmailPaymentList(emailPaymentList);
                 email.setLastPaymentDate(tanggal);
                 email.setLastPaymentHour(jam);
+                email.setShippingFee(resultSet.getInt("shipping_fee"));
                 email.setOrderNumber(resultSet.getString("order_number"));
                 email.setTotalPayment(resultSet.getInt("total_amount"));
                 email.setSubtotal(resultSet.getInt("subtotal"));
                 email.setUniqueCode(resultSet.getString("transfer_unique_number"));
 
-                String supplierId = resultSet.getString("supplier_id").replace("\"","").replace("\"","").replace(" ","");
+//                String supplierId = resultSet.getString("supplier_id").replace("\"","").replace("\"","").replace(" ","");
                 String resellerId = resultSet.getString("reseller_id").replace("\"","").replace("\"","").replace(" ","");
 
 
                 Email updateValues = GetEmailOrderDetailForReminder(resultSet.getInt("id"), email);
 
-                updateValues = getEmailInformation(resultSet.getInt("id"), updateValues);
-
-                SendMailConfirm(updateValues, "confirm");
+                updateValues = getEmailInformation(resultSet.getInt("reseller_id"), updateValues);
+//                LOG.info("\nemail -> {}",updateValues.toString());
+//                SendMailConfirm(updateValues, "reminder");
                 String messageText ="Segera lakukan pembayaran sebesar Rp. "+totalAmount+" untuk pesananmu "+orderNo+" sebelum "+paymentExpired+" untuk menghindari pembatalan.";
 
-                sendNotifOneSignalSupplierForReminder(Integer.parseInt(supplierId), messageText);
+//                sendNotifOneSignalSupplierForReminder(Integer.parseInt(supplierId), messageText);
                 sendNotifOneSignalResellerForReminder(Integer.parseInt(resellerId),messageText);
+
 
             }
 
@@ -1152,7 +1126,7 @@ public class OrderService implements OrderServiceRepository {
     }
 
     public void sendNotifOneSignalSupplierForReminder(int supplierId, String message) throws Exception {
-        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/onesignal";
+        String URL_TOKDIS ="http://13.250.223.74:3001/api/v1/notification/supplier-onesignal";
         URL obj = new URL(URL_TOKDIS);
         HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
         OneSignal oneSignal = new OneSignal();
@@ -1161,7 +1135,7 @@ public class OrderService implements OrderServiceRepository {
         //add reuqest header
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", MediaType.APPLICATION_JSON);
-
+//        LOG.info("\n asdf {}",oneSignal.toString());
         // Send post request
         connection.setDoOutput(true);
         DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
@@ -1542,8 +1516,6 @@ public class OrderService implements OrderServiceRepository {
         }
 
         return email;
-
-        
 
     }
 

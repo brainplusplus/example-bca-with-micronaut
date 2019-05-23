@@ -70,7 +70,7 @@ public class TransactionCheckerJob {
      * TODO update order suppliers ->supplier_feedback_expired_AT = now()+1 DAY, order_status = 1
      * TODO Send NotificationSupplier ONESIGNAL "Pesanan Berhasil dibayar" -> "Pembayaran pesananmu TDO/20190225/0000160 telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim."
      * */
-    @Scheduled(fixedDelay = "270s", initialDelay = "30s")
+    @Scheduled(fixedDelay = "10s", initialDelay = "10s")
     void executeEveryTen() throws Exception {
         AccountStatement ac ;
         Calendar now = Calendar.getInstance();
@@ -89,6 +89,7 @@ public class TransactionCheckerJob {
         BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
         try {
             ac = accountStatementService.saveConditional(businessBankingTemplate.getStatement(common.BCA_CORPORATE_ID,common.BCA_ACCOUNT_NUMBER, fromDate, endDate));
+            LOG.error("----------- : {}\n\n",ac.toString());
             for (AccountStatementDetail acd: ac.getAccountStatementDetailList()) {
                 orderServiceRepository.CheckToTokdis(acd.getAmount());
             }

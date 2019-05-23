@@ -2,7 +2,7 @@ micronaut:
     application:
         name: bank-transaction-service
     server:
-        port: -1
+        port: 8090
 
 
 #datasources:

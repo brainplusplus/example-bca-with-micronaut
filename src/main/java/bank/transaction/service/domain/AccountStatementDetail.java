@@ -127,13 +127,11 @@ public class AccountStatementDetail {
 
     @Override
     public String toString() {
-        return "AccountStatementDetail{" +
-                "branchCode='" + branchCode + '\'' +
-                ", transactionType=" + transactionType +
-                ", amount=" + amount +
-                ", name='" + name + '\'' +
-                ", remark='" + remark + '\'' +
-                ", transactionDate='" + transactionDate + '\'' +
-                '}';
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(this);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

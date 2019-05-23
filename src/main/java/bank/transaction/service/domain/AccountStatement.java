@@ -121,10 +121,11 @@ public class AccountStatement {
 
     @Override
     public String toString() {
-        return "AccountStatement{" +
-                "currencyCode='" + currencyCode + '\'' +
-                ", startBalance=" + startBalance +
-                ", accountStatementDetailList=" + accountStatementDetailList +
-                '}';
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(this);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }
