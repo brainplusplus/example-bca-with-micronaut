@@ -125,13 +125,25 @@ public class AccountStatementDetail {
 
     public AccountStatement getAccountStatement() { return accountStatement; }
 
+//    @Override
+//    public String toString() {
+//        try {
+//            return new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(this);
+//        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+//            e.printStackTrace();
+//        }
+//        return null;
+//    }
+
     @Override
     public String toString() {
-        try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(this);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return "AccountStatementDetail{" +
+                "branchCode='" + branchCode + '\'' +
+                ", transactionType=" + transactionType +
+                ", amount=" + amount +
+                ", name='" + name + '\'' +
+                ", remark='" + remark + '\'' +
+                ", transactionDate='" + transactionDate + '\'' +
+                '}';
     }
 }

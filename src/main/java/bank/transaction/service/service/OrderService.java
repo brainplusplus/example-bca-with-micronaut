@@ -36,6 +36,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.net.ssl.HttpsURLConnection;
 import javax.sql.DataSource;
+import javax.validation.constraints.NotNull;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -75,19 +76,15 @@ public class OrderService implements OrderServiceRepository {
     @Override
     public void CheckToTokdis(BigDecimal amount){
         int amountValue = amount.intValue();
-        Connection con = null;
-        Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         List<Integer> orderIdLIst = new ArrayList<>();
-        /*
-         * TODO select order_summaries
-         * parameter total_amount -> amount
-         * parameter is_paid -> 0 yang belum bayar
-         * */
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id , a.reseller_data->'$.id' as reseller_id, date_format(b.awb_expired_at,'%d-%m %Y %h:%m') as awb_expired_at, date_format(b.supplier_feedback_expired_at,'%d-%m %Y %h:%m') as supplier_feedback_expired_at from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.total_amount = ? AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at >= NOW() AND a.payment_status in (0,3)");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id , a.reseller_data->'$.id' as reseller_id, date_format(b.awb_expired_at,'%d-%m %Y %h:%m') as awb_expired_at, date_format(b.supplier_feedback_expired_at,'%d-%m %Y %h:%m') as supplier_feedback_expired_at from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.total_amount = ? AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at >= NOW() AND a.payment_status in (0,3)")
+                )
+        {
+
             preparedStatement.setInt(1,amountValue);
             resultSet = preparedStatement.executeQuery();
 
@@ -97,7 +94,6 @@ public class OrderService implements OrderServiceRepository {
                 updateToTokdis(resultSet.getInt("id"));
                 updateOrderSuppliers(resultSet.getInt("id"));
             }
-//            LOG.info("\n\n\nHASIL -> {}",orderIdLIst.toString());
             try{
                 HIT_API_TO_SERVER_AFTER_GET_STATEMENT(orderIdLIst);
             }
@@ -108,14 +104,6 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -134,15 +122,17 @@ public class OrderService implements OrderServiceRepository {
      * is_paid -> 1 -> true/paid
      * */
     public void updateToTokdis(int id){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_summaries set payment_status = ? , " +
-                    "payment_verified_by = ? , payment_verified_at = ? , is_paid = ? where id = ?");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_summaries set payment_status = ? , " +
+                                "payment_verified_by = ? , payment_verified_at = ? , is_paid = ? where id = ?")
+                )
+        {
+
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2,0); //0 => system;
             preparedStatement.setTimestamp(3, new java.sql.Timestamp(new Date().getTime()));
@@ -151,33 +141,22 @@ public class OrderService implements OrderServiceRepository {
             preparedStatement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? where summaries_id = ?");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? where summaries_id = ?")
+
+            )
+        {
+
             preparedStatement.setInt(1,1);//waiting confirm <DO NOT FORGET TO CHANGE THIS>
             preparedStatement.setInt(2, id); // id summaries_id;
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -186,14 +165,15 @@ public class OrderService implements OrderServiceRepository {
      * */
     @Override
     public void autoUpdatePaymentStatusIfExpired(){
-        Connection con = null;
-        Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_summaries where payment_status in(0,2) AND payment_expired_at <= ? AND is_paid = 0 AND is_cancelled = 0"); //expired_payment-date -> payment_expired_at
+        try
+                (
+                        Connection con = dataSource.getConnection();
+                        PreparedStatement preparedStatement = con.prepareStatement("select * from order_summaries where payment_status in(0,2) AND payment_expired_at <= ? AND is_paid = 0 AND is_cancelled = 0");
+                )
+        {
+
             preparedStatement.setTimestamp(1, new java.sql.Timestamp(new Date().getTime()));
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -234,25 +214,14 @@ public class OrderService implements OrderServiceRepository {
                 order.setShippingAddress(getAddress(resultSet.getInt("id")));
                 order.setPpn(0);
                 order.setOrderDetailList(orderDetails);
-//                LOG.info("\n\n\norderDetails ---------------------------------- \n {}",orderDetails);
                 SendMailNotification(
                         order,"failed"
                 );
-//                updateOrderSummariesIfCancelled(resultSet.getInt("id"));
-                //+ one signal -> kirim ke reseller
             }
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -263,14 +232,15 @@ public class OrderService implements OrderServiceRepository {
      * is_cancelled = 1
      * */
     public void updateOrderSummaries(int id){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_summaries set payment_status = ? , " +
-                     "is_cancelled = ? where id = ?");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_summaries set payment_status = ? , " +
+                            "is_cancelled = ? where id = ?")
+                )
+        {
             preparedStatement.setInt(1,2);
             preparedStatement.setInt(2,1);
             preparedStatement.setInt(3, id);
@@ -278,14 +248,6 @@ public class OrderService implements OrderServiceRepository {
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -293,26 +255,19 @@ public class OrderService implements OrderServiceRepository {
      * update if ordrder expired
      * */
     public void updateOrderStatusAtOrderSupplier(int id){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set order_status = 2 , reason_rejected = 'SYSTEM_REJECTED_REASON_0', rejected_at = NOW(), is_rejected_by_system = 1, is_rejected = 1 where summaries_id = ?");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set order_status = 2 , reason_rejected = 'SYSTEM_REJECTED_REASON_0', rejected_at = NOW(), is_rejected_by_system = 1, is_rejected = 1 where summaries_id = ?")
+                )
+        {
             preparedStatement.setInt(1,id);
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -321,29 +276,22 @@ public class OrderService implements OrderServiceRepository {
      * @params id -> summaries_id
      * */
     public void updateOrderSuppliers(int id){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 1 DAY)  ," +
-                    "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 1 DAY)) ," +
-                    "order_status = ? where summaries_id = ?");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set supplier_feedback_expired_at = DATE_ADD(SYSDATE(), INTERVAL 3 DAY)  ," +
+                            "supplier_feedback_expired_time = UNIX_TIMESTAMP(DATE_ADD(SYSDATE(), INTERVAL 3 DAY)) ," +
+                            "order_status = ? where summaries_id = ?");
+                )
+        {
             preparedStatement.setInt(1,1);
             preparedStatement.setInt(2, id);
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -405,15 +353,17 @@ public class OrderService implements OrderServiceRepository {
     }
 
     public Order getInformationToEmail(int id,Order order){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         HashMap map = new HashMap();
 
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select * from reseller where id = ? ");
+        try
+                (
+                        Connection con = dataSourceTokdisdev.getConnection();
+                        PreparedStatement preparedStatement = con.prepareStatement("select * from reseller where id = ? ");
+                )
+        {
+
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -427,65 +377,52 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return order;
     }
 
 
     public String getAddress(int id){
-        Connection con = null;
-        Statement statement = null;
+
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         String alamat = "";
         HashMap map = new HashMap();
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select receiver->'$.address' as alamat from order_suppliers where summaries_id = ? LIMIT 1 ");
+        try
+                (
+                        Connection con = dataSource.getConnection();
+                        PreparedStatement preparedStatement = con.prepareStatement("select receiver->'$.address' as alamat from order_suppliers where summaries_id = ? LIMIT 1 ");
+
+                )
+        {
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 alamat = resultSet.getString("alamat");
-//                LOG.info("\n\n\nALAMAT == {}", alamat);
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return alamat;
     }
 
     public  HashMap<String,List> getOrderProductDetail(int id){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         List<OrderDetail> tampung = new ArrayList<>();
         List<HashMap<String,Integer>> itemAndQty = new ArrayList<>();
         HashMap<String,List> result = new HashMap<>();
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.product_data, a.product_variation->'$[*].id' as id_item, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("select a.product_data, a.product_variation->'$[*].id' as id_item, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
+                )
+        {
+
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
-            int index = 0;
+
             while(resultSet.next()){
                 String jsonString = resultSet.getString("product_data");
                 String getItemList = resultSet.getString("id_item");
@@ -503,14 +440,7 @@ public class OrderService implements OrderServiceRepository {
                                     map.put("qty",Integer.parseInt(qtyItemList.get(idx)));
                                     itemAndQty.add(map);
                                 }
-                        )
-                ;
-//                LOG.info("\n\n\n itemAndQty == {}",itemAndQty);
-
-//                for(int a = 0; a < idItemList.size(); a++){
-//                }
-//                LOG.info("\n\n\nItem List -> {} ",idItemList);
-//                LOG.info("\n\n\nQty List -> {} ",qtyItemList);
+                        );
 
                 ObjectMapper mapper = new ObjectMapper();
                 OrderDetail orderDetail = mapper.readValue(jsonString, OrderDetail.class);
@@ -528,14 +458,6 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return result;
     }
@@ -555,46 +477,44 @@ public class OrderService implements OrderServiceRepository {
 
 
     public void UpdateORderStatusOrderSupplier(int id){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
 
         try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? , confirmed_at = NOW() where id = ? ");
+                )
         {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set order_status = ? , confirmed_at = NOW() where id = ? ");
+
             preparedStatement.setInt(1,6);//Order status -> DONE
             preparedStatement.setInt(2, id);//id -> itx
             preparedStatement.executeUpdate();
-//            sendNotifWhereStatusIsDone();
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     public List<InvoiceIdAndResellerCode> getListOrderSupplierWantToBeDone(){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
 
 
         List<InvoiceIdAndResellerCode> invoiceIdAndResellerCodeList = new ArrayList<>();
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.id, b.reseller_code from order_suppliers a join order_summaries b on a.summaries_id = b.id  where (a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5)");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("select a.id, b.reseller_code from order_suppliers a join order_summaries b on a.summaries_id = b.id  where (a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5)");
+                )
+        {
+
+
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 InvoiceIdAndResellerCode InvoiceIdAndResellerCode = new InvoiceIdAndResellerCode(resultSet.getInt("id"),resultSet.getInt("reseller_code"));
@@ -603,14 +523,6 @@ public class OrderService implements OrderServiceRepository {
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return invoiceIdAndResellerCodeList;
@@ -618,14 +530,16 @@ public class OrderService implements OrderServiceRepository {
     }
 
     public void sendNotifWhereStatusIsDone(){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id from order_suppliers a join order_summaries b on a.summaries_id = b.id where a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5");
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("select a.*, b.supplier_data->'$.id' as supplier_id from order_suppliers a join order_summaries b on a.summaries_id = b.id where a.confirmed_expired_at <= NOW() AND a.confirmed_at is null AND a.order_status = 5");
+                )
+        {
+
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 String messageSupplier = "Pesanan "+resultSet.getString("invoice_number")+" telah selesai. Dana akan terus diteruskan ke Saldo kamu.";
@@ -635,28 +549,22 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     @Transactional
     public void updateOrderStatusRejected(){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         UpdateQuantityOfItemWhenRejectOrder();
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set is_rejected = 1 , order_status = 2, supplier_feedback_at = NOW(), is_rejected_by_system = 1, rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_1' where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
-//            preparedStatement.setInt(1,6);//Order status -> DONE
+        try
+                (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set is_rejected = 1 , order_status = 2, supplier_feedback_at = NOW(), is_rejected_by_system = 1, rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_1' where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
+                )
+        {
             preparedStatement.executeUpdate();
 
             ListIdInvoiceId listIdInvoiceId = new ListIdInvoiceId();
@@ -667,28 +575,19 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     public List<Integer> GET_LIST_INVOICE_ID_FOR_STATUS_REJECTED(){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         List<Integer> listId = new ArrayList<>();
-        try {
-
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_suppliers where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
-//            preparedStatement.executeUpdate();
+        try
+                (
+                        Connection con = dataSource.getConnection();
+                        PreparedStatement preparedStatement = con.prepareStatement("select * from order_suppliers where supplier_feedback_expired_at <= NOW() AND supplier_feedback_at is null AND order_status = 1 ");
+                )
+        {
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 listId.add(resultSet.getInt("id"));
@@ -696,29 +595,25 @@ public class OrderService implements OrderServiceRepository {
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return listId;
     }
 
     public List<HashMap<String,Integer>> getAllItemWhereWantToUpdateIt(){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         List<HashMap<String,Integer>> itemAndQty = new ArrayList<>();
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select b.product_variation->'$[*].id' as id_item, b.product_variation->'$[*].qty' as qty from order_suppliers a join order_products b on b.order_supplier_id = a.id where a.supplier_feedback_expired_at < NOW() AND a.supplier_feedback_at is null AND a.order_status = 1");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select b.product_variation->'$[*].id' as id_item, b.product_variation->'$[*].qty' as qty from order_suppliers a join order_products b on b.order_supplier_id = a.id where a.supplier_feedback_expired_at < NOW() AND a.supplier_feedback_at is null AND a.order_status = 1");
+            )
+        {
+
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 HashMap<String,Integer> map = new HashMap();
@@ -740,14 +635,6 @@ public class OrderService implements OrderServiceRepository {
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return itemAndQty;
@@ -787,14 +674,12 @@ public class OrderService implements OrderServiceRepository {
         /**
          * @NOTED + brankas
          * */
-        Connection con = null;
-        Statement statement = null;
-        ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 ,rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_2' where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("update order_suppliers set is_shipped = 1, order_status = 2, is_rejected_by_system = 1, is_rejected = 1 ,rejected_at = NOW(), reason_rejected = 'SYSTEM_REJECTED_REASON_2' where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
+            )
+        {
             preparedStatement.executeUpdate();
 
             ListIdInvoiceId listIdInvoiceId = new ListIdInvoiceId();
@@ -805,149 +690,92 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     public List<Integer> GET_LIST_INVOICE_ID(){
-        Connection con = null;
-        Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         List<Integer> listId = new ArrayList<>();
 
-        try {
-
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_suppliers where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select * from order_suppliers where awb_expired_at <= NOW() AND supplier_feedback_at is not null AND awb_number = '' AND order_status = 3  ");
+            )
+        {
             resultSet = preparedStatement.executeQuery();
-            while(resultSet.next()){
+            while(resultSet.next())
+            {
                 listId.add(resultSet.getInt("id"));
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return listId;
     }
 
-//    public void UpdateOrderAllCompleted(){
-//        Connection con = null;
-//        Statement statement = null;
-//        ResultSet resultSet = null;
-//        PreparedStatement preparedStatement = null;
-//
-//        try {
-//            for (Integer index : CheckOrderSummariesGetAllCompletedIsNull()) {
-//                con = dataSource.getConnection();
-//                preparedStatement = con.prepareStatement("select * from pdate order_suppliers set confirmed_at = NOW() , order_status = 6 where confirmed_expired_at < NOW() AND confirmed_at is null ");
-//                preparedStatement.executeUpdate();
-//            }
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        } finally{
-//            try {
-//                if(resultSet != null) resultSet.close();
-//                if(statement != null) statement.close();
-//                if(con != null) con.close();
-//            } catch (SQLException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
-
     public List<Integer> CheckOrderSummariesGetAllCompletedIsNull(){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         List<Integer> listOrderSummaries = new ArrayList<>();
 
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select * from order_summaries where completed_at is null ");
-//            preparedStatement.setInt(1, id);
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select * from order_summaries where completed_at is null ")
+            )
+        {
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 listOrderSummaries.add(resultSet.getInt("id"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return listOrderSummaries;
     }
 
     public void UpdateItemQuantity(String qlStringCase, String qlStringWhere){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("update product_variation_details SET quantity = "+ qlStringCase + qlStringWhere);
+            )
+        {
             preparedStatement.executeUpdate();
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     @Override
     @Transactional
     public void checkForReminder(){
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         Email email = new Email();
         EmailPayment emailPayment = new EmailPayment();
         List<EmailPayment> emailPaymentList = new ArrayList<>();
 
-        try {
-
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.id, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number, b.shipping_data->'$.price' as shipping_fee, b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 0 AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at <= DATE_SUB(NOW(), interval -1 hour)");
+        try
+            (
+                    Connection con = dataSource.getConnection();
+                    PreparedStatement preparedStatement = con.prepareStatement("select a.id, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number, b.shipping_data->'$.price' as shipping_fee, b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id  LEFT join notifications d  on (a.id <> d.cols_id and codes = 'PAYMENT_REMINDER' and types = 'ONE_SIGNAL' ) where a.payment_status = 0 AND a.is_paid = 0 AND a.is_cancelled = 0 AND a.payment_expired_at <= DATE_SUB(NOW(), interval -1 hour)");
+            )
+        {
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 Timestamp timestamp = resultSet.getTimestamp("payment_expired_at");
                 Date paymentExpiredAt = new Date(timestamp.getTime());
-
-//                messageParams.put("paymentExpired",);
-//                messageParams.put("orderNo",);
-//                messageParams.put("totalAmount",);
                 String paymentExpired = new SimpleDateFormat("dd/MM/yyyy hh:mm").format(paymentExpiredAt);
                 int totalAmount = resultSet.getInt("total_amount");
                 String orderNo = resultSet.getString("order_number");
@@ -984,7 +812,9 @@ public class OrderService implements OrderServiceRepository {
                 String messageText ="Segera lakukan pembayaran sebesar Rp. "+totalAmount+" untuk pesananmu "+orderNo+" sebelum "+paymentExpired+" untuk menghindari pembatalan.";
 
 //                sendNotifOneSignalSupplierForReminder(Integer.parseInt(supplierId), messageText);
-                sendNotifOneSignalResellerForReminder(Integer.parseInt(resellerId),messageText);
+//                sendNotifOneSignalResellerForReminder(Integer.parseInt(resellerId),messageText);//ini yang diuncoment buat cek sudah keinsert aatau belum tanggal 19 juli 2019
+
+                CreateLogNotificationForReminder(resultSet.getInt("id"));
 
 
             }
@@ -995,34 +825,23 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     public Email GetEmailOrderDetailForReminder(int id,Email email){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
         List<EmailOrderDetail> emailOrderDetailList = new ArrayList<>();
-
-//        LOG.info("\n\n\n==> id -> {}",id);
-
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.product_variation->'$[*].name' as name, a.product_data->'$.price' as price, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select a.product_variation->'$[*].name' as name, a.product_data->'$.price' as price, a.product_variation->'$[*].qty' as qty from order_products a join order_suppliers b on a.order_supplier_id = b.id join order_summaries c on b.summaries_id = c.id where c.id = ?");
+            )
+        {
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
-
-
                String getListName = resultSet.getString("name");
                String getListQty = resultSet.getString("qty");
                int price = resultSet.getInt("price");
@@ -1046,20 +865,10 @@ public class OrderService implements OrderServiceRepository {
                                 }
                         );
                 email.setEmailOrderDetailList(emailOrderDetailList);
-//                LOG.info("\n\n\n email  -> {}",email);
-
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return email;
@@ -1067,14 +876,17 @@ public class OrderService implements OrderServiceRepository {
 
 
     public Email getEmailInformation(int id, Email email) throws IOException {
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select * from reseller where id = ? ");
+
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select * from reseller where id = ? ");
+            )
+        {
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1083,14 +895,6 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return email;
@@ -1212,16 +1016,20 @@ public class OrderService implements OrderServiceRepository {
 
 
     public OneSignal getSupplierIDForSendOneSignal(OneSignal oneSignal, int id){//supplier id
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         HashMap map = new HashMap();
         String playerId = "";
 
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select player_id from supplier where id = ? ");
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select player_id from supplier where id = ? ");
+            )
+        {
+
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1229,14 +1037,6 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return oneSignal;
@@ -1245,14 +1045,17 @@ public class OrderService implements OrderServiceRepository {
 
     //TODO get Supplier -> player_id
     public OneSignal getSupplierCodeForSendOneSignal(OneSignal oneSignal, String code){//supplier code
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select player_id from supplier where member_code = ? ");
+
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select player_id from supplier where member_code = ? ");
+            )
+        {
             preparedStatement.setString(1, code);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1260,30 +1063,22 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
-
         return oneSignal;
 
     }
 
     public OneSignal getResellerIDForSendOneSignal(OneSignal oneSignal, int id){//supplier id
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
 
-        String playerId = "";
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select player_id from onesignal_player where reseller_id = ? ");
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select player_id from onesignal_player where reseller_id = ? ");
+            )
+        {
+
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1291,14 +1086,6 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return oneSignal;
@@ -1336,14 +1123,18 @@ public class OrderService implements OrderServiceRepository {
     }
 
     public String getPhoneNoSupplierById(int id){//supplier id
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         String phoneNo = "";
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select handphone_no from supplier where id = ? ");
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select handphone_no from supplier where id = ? ");
+            )
+        {
+
+
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1351,14 +1142,6 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return phoneNo;
@@ -1366,13 +1149,17 @@ public class OrderService implements OrderServiceRepository {
     }
 
     public void sentNotifMustSentItem(){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
-        try {
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("SELECT * FROM ( SELECT o.*,DATE_FORMAT(o.supplier_feedback_expired_at, '%d-%m-%Y %H.%i') as send_before, (select count(1) FROM notifications n where n.cols_id = o.id AND n.codes = 'SEND_ORDER' AND types = 'ONE_SIGNAL' ) AS is_sent FROM order_suppliers o where order_status = 3 and supplier_feedback_expired_at > NOW() AND  date_add(supplier_feedback_expired_at, interval -1 day) < NOW() ) A where is_sent =0");
+
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("SELECT * FROM ( SELECT o.*,DATE_FORMAT(o.supplier_feedback_expired_at, '%d-%m-%Y %H.%i') as send_before, (select count(1) FROM notifications n where n.cols_id = o.id AND n.codes = 'SEND_ORDER' AND types = 'ONE_SIGNAL' ) AS is_sent FROM order_suppliers o where order_status = 3 and supplier_feedback_expired_at > NOW() AND  date_add(supplier_feedback_expired_at, interval -1 day) < NOW() ) A where is_sent =0");
+            )
+        {
+
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
                 String supplierCode = resultSet.getString("supplier_code");
@@ -1391,14 +1178,6 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -1426,16 +1205,35 @@ public class OrderService implements OrderServiceRepository {
         }
     }
 
+    public void CreateLogNotificationForReminder(int orderSummariesId){
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("insert into notifications(cols_id,codes,types,created_by,created_at) values(?, 'PAYMENT_REMINDER','ONE_SIGNAL',0,now())");
+
+            )
+        {
+
+            preparedStatement.setInt(1,orderSummariesId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
     //TODO get Supplier -> player_id
     public Integer getSupplierIDByCodeForSendOneSignal(String code){//supplier code
-        Connection con = null;
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         int supplierId = 0;
-        try {
-            con = dataSourceTokdisdev.getConnection();
-            preparedStatement = con.prepareStatement("select id from supplier where member_code = ? ");
+
+        try
+            (
+                Connection con = dataSourceTokdisdev.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select id from supplier where member_code = ? ");
+            )
+        {
             preparedStatement.setString(1, code);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1443,31 +1241,25 @@ public class OrderService implements OrderServiceRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (resultSet != null) resultSet.close();
-                if (statement != null) statement.close();
-                if (con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return supplierId;
     }
 
     public Email getSentEmail(int id, String status){
-        Connection con = null;
+
         Statement statement = null;
         ResultSet resultSet = null;
-        PreparedStatement preparedStatement = null;
+
         Email email = new Email();
         EmailPayment emailPayment = new EmailPayment();
         List<EmailPayment> emailPaymentList = new ArrayList<>();
 
-        try {
-
-            con = dataSource.getConnection();
-            preparedStatement = con.prepareStatement("select a.id,a.total_delivery_fee, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number,b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 1 AND a.is_paid = 1 AND a.is_cancelled = 0 and a.id = ?");
+        try
+            (
+                Connection con = dataSource.getConnection();
+                PreparedStatement preparedStatement = con.prepareStatement("select a.id,a.total_delivery_fee, a.payment_expired_at, a.order_number, a.total_amount, a.subtotal, a.transfer_unique_number, a.payment_data->'$.method' as method, a.payment_data->'$.via.BANK[0].code' as vendor, a.payment_data->'$.via.BANK[0].icon' as vendor_icon, a.payment_data->'$.via.BANK[0].name' as account_name, a.payment_data->'$.via.BANK[0].number' as account_number,b.supplier_data->'$.id' as supplier_id, a.reseller_data->'$.id' as reseller_id from order_summaries a join order_suppliers b on a.id = b.summaries_id where a.payment_status = 1 AND a.is_paid = 1 AND a.is_cancelled = 0 and a.id = ?");
+            )
+        {
             preparedStatement.setInt(1, id);
             resultSet = preparedStatement.executeQuery();
             while(resultSet.next()){
@@ -1505,14 +1297,6 @@ public class OrderService implements OrderServiceRepository {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try {
-                if(resultSet != null) resultSet.close();
-                if(statement != null) statement.close();
-                if(con != null) con.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
 
         return email;
@@ -1554,7 +1338,6 @@ public class OrderService implements OrderServiceRepository {
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);
         }
-//        LOG.info("\n\n\n BCA -> Response => {}",response);
         in.close();
     }
 
@@ -1599,6 +1382,34 @@ public class OrderService implements OrderServiceRepository {
         }
 //        LOG.info("\n\n\n Response => {}",response);
         in.close();
+    }
+
+    @Override
+    public String COMPLETE_TRX(@NotNull List<Integer> idList){
+        ResponseModel response = new ResponseModel();
+        try {
+            idList.forEach(it->{
+                updateToTokdis(it);
+                updateOrderSuppliers(it);
+            });
+
+            HIT_API_TO_SERVER_AFTER_GET_STATEMENT(idList);
+
+            response.setCode(200);
+            response.setCodeMessage("Success");
+            response.setCodeType("success");
+            response.setData("{}");
+        }
+        catch (Exception ex){
+            response.setCode(400);
+            response.setCodeMessage("Failed");
+            response.setCodeType("failed");
+            response.setData("{}");
+            ex.printStackTrace();
+        }
+
+        return response.toString();
+
     }
 
 }

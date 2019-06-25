@@ -18,7 +18,9 @@
  */
 package bank.transaction.service.repository;
 
+import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface OrderServiceRepository {
     void autoUpdatePaymentStatusIfExpired();
@@ -28,4 +30,5 @@ public interface OrderServiceRepository {
     void UpdateIsRejectedIfSupplierNotSentTheOrder();
     void checkForReminder();
     void sentNotifMustSentItem();
+    String COMPLETE_TRX(@NotNull List<Integer> idList);
 }

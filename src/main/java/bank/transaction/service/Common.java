@@ -46,13 +46,13 @@ public class Common {
      * Notification Server URL
      * */
 
-    public final String UR_NOTIFICATION = "http://13.250.223.74:3003/api/v1/supplier/notificationcenter/create";
+    public final String URL_NOTIFICATION = "http://13.250.223.74:3003/api/v1/supplier/notificationcenter/create";
 
     /**
      * STATUS
      * @params dev for development and prod is production
      * */
-    public final String LOG_NOTIF = "dev"; //dev or prod
+    public final String LOG_NOTIF = "prod"; //dev or prod
     public final String CANCELLED = "Canceled";
     public final String test ="saya suka %s";
 
