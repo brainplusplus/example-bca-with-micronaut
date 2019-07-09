@@ -13,13 +13,7 @@ public class Common {
     /**
      * TODO Access BNI Server
      * */
-    public final String BNI_CLIENT_ID = "IDBNIdG9rb2Rpc3RyaWJ1dG9y";
-    public final String BNI_API_KEY = "bffc4b08-bebb-42eb-8e8d-e16bc0a3ae7d";
-    public final String BNI_API_SECRET = "3643ab9a-e460-4393-8fad-2e9bfcee78a8";
-    public final String BNI_HEADER_X_API_KEY = "x-api-key";
-    public final String BNI_PATH_GET_PAYMENT_STATUS = "/H2H/v2/getpaymentstatus";
-    public final String BNI_ACCESS_TOKEN_CLIENT_ID = "d78e500c-76c1-49e8-a4d8-41c5154b150e";
-    public final String BNI_ACCESS_TOKEN_CLIENT_SECRET = "ad0882f2-b9b4-46c2-beca-ff2946e4e1aa";
+
 
 
 
