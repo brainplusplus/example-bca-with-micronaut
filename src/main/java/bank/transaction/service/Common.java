@@ -21,16 +21,7 @@ public class Common {
     public final String BNI_ACCESS_TOKEN_CLIENT_ID = "d78e500c-76c1-49e8-a4d8-41c5154b150e";
     public final String BNI_ACCESS_TOKEN_CLIENT_SECRET = "ad0882f2-b9b4-46c2-beca-ff2946e4e1aa";
 
-    /**
-     * TODO Access BCA Server
-     * */
-    public final String BCA_URL = "https://api.klikbca.com";
-    public final String BCA_API_KEY = "114ee05a-2c94-4b4b-84cd-6957d156ed68";
-    public final String BCA_API_SECRET = "6456f0b4-4a63-46a2-8e1f-5eac01fb64e5";
-    public final String BCA_CLIENT_ID = "c3cd2bb1-3254-45a5-8bee-040d25a665da";
-    public final String BCA_CLIENT_SECRET = "df0bc9c3-c466-4b15-90cf-29771c52ebe0";
-    public final String BCA_CORPORATE_ID = "IBSDISTRIU";
-    public final String BCA_ACCOUNT_NUMBER = "2774358888";
+
 
 
 //    public final String BCA_URL = "https://sandbox.bca.co.id";
