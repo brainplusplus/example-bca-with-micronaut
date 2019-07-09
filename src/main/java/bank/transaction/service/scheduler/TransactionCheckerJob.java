@@ -84,7 +84,6 @@ public class TransactionCheckerJob {
         Date fromDate = toDate(year, month,day);
         Date endDate = toDate(year, month, day);
 
-//        AccessGrant testGetTokenBNI = oauth2OperationsBNI.getToken("d78e500c-76c1-49e8-a4d8-41c5154b150e","ad0882f2-b9b4-46c2-beca-ff2946e4e1aa");
         /** THIS IS IMPORTANT */
         BusinessBankingTemplate businessBankingTemplate = new BusinessBankingTemplate(getRestTemplate());
         try {
