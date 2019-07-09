@@ -37,22 +37,6 @@ public class Common {
      * Notification Server URL
      * */
 
-    public final String URL_NOTIFICATION = "http://13.250.223.74:3003/api/v1/supplier/notificationcenter/create";
-
-    /**
-     * STATUS
-     * @params dev for development and prod is production
-     * */
-    public final String LOG_NOTIF = "prod"; //dev or prod
-    public final String CANCELLED = "Canceled";
-    public final String test ="saya suka %s";
-
-    /*
-    * MESSAGE
-    * */
-    public String MESSAGE_RESELLER_1 = "Pembayaran pesananmu %1$s telah dikonfirmasi dan diteruskan ke penjual. Silahkan tunggu pesanan dikirim.";
-    public String MESSAGE_SUPPLIER_1 = "Segera konfirmasi pesanan sebelum %1$s untuk memberitahu pembeli bahwa pesanan sedang kamu proses.";
-    public String MESSAGE_SUPPLIER_2 = "Pesanan Baru %1$s  telah dikonfirmasi. Kirim pesanan sebelum %2$s .";
 
 
 }
