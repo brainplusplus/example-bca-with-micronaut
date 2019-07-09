@@ -18,4 +18,3 @@ What this app use?
 
 Hasil akhir berupa sebuah `.jar`.
 
-`Author : Bobby`
